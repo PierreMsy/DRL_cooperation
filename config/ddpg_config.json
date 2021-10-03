@@ -1,0 +1,33 @@
+{
+    "seed": 1,
+    "gamma": 0.99,
+    "tau": 5e-3,
+    "batch_size": 64,
+    "update_every": 5,
+    "device": "cpu",
+    "buffer_type": "uniform",
+    "buffer_size": 10000,
+    "critic":{
+        "seed": 1,
+        "hidden_layers": [64, 64],
+        "last_layer_init": 3e-3,
+        "learning_rate": 1e-3,
+        "architecture": "batch_norm",
+        "optimizer": "Adam",
+        "criterion": "MSE"
+    },
+    "actor":{
+        "seed": 1,
+        "hidden_layers": [64, 64],
+        "last_layer_init": 3e-3,
+        "learning_rate": 1e-4,
+        "architecture": "batch_norm",
+        "optimizer": "Adam"
+    },
+    "noise":{
+        "method": "OU",
+        "mu": 0.0,
+        "sigma": 0.2,
+        "theta": 0.15
+    }
+}
