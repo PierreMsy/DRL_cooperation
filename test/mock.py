@@ -27,3 +27,11 @@ class Mock_env:
 
         return next_observations, rewards, dones 
 
+class Mock_config:
+
+    def __init__(self,
+                 buffer_type,
+                 buffer_size) -> None:
+        self.buffer_type = buffer_type
+        self.buffer_size = buffer_size
+        self.device = 'cpu'
