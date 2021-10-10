@@ -54,14 +54,13 @@ class DDPG_agent(Base_agent):
 
         return action
 
-    def step(self, observations, actions, reward, next_observations, done):
+    def step(self, obs_full, action_full, reward, next_obs_full, done):
         '''
         Each centralized action-value function is learned independently using
         experiences defined as (x, a1, ... ,an, r, x', done).
         '''
-
         self.t_step +=1
-        self.buffer.add(observations, actions, reward, next_observations, done)
+        self.buffer.add(obs_full, action_full, reward, next_obs_full, done)
 
         if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
             self.learn()
@@ -77,16 +76,16 @@ class DDPG_agent(Base_agent):
         - The actor is updated using direct approximates of the state-action values from the critic.
           value to maximize w.r.t θ : Q_w(s(t), µ_θ(s(t+1)))  
         '''
-        observations_batch, actions_batch, rewards, next_observations_batch, dones =\
+        obss_full_batch, actions_full, rewards, next_obss_full, dones =\
             self.buffer.sample()
 
-        # /!\ has to be the target_network /!\
-        next_actions = self.maddpg._act_target(observations_batch)
+        next_actions_full = self.maddpg._act_target(obss_full_batch)
 
+        # bug
         TD_targets = rewards + self.config.gamma * \
-            self.critic_target_network(next_observations_batch, next_actions) * (1 - dones)
+            self.critic_target_network(next_obss_full, next_actions_full) * (1 - dones)
 
-        Q_values = self.critic_network(observations_batch, actions_batch)
+        Q_values = self.critic_network(obss_full_batch, actions_full)
 
         loss = self.critic_criterion(Q_values, TD_targets)
 
@@ -95,9 +94,9 @@ class DDPG_agent(Base_agent):
         self.critic_network.optimizer.step()
 
         # see if it work
-        action_pred = self.actor_network(observations_batch[self.index])
-        next_actions[self.index] = action_pred
-        Q_values = self.critic_target_network(next_observations_batch, next_actions) 
+        action_pred = self.actor_network(obss_full_batch[self.index])
+        next_actions_full[self.index] = action_pred
+        Q_values = self.critic_target_network(next_obss_full, actions_full) 
         loss = - (Q_values).mean()
 
         self.actor_network.optimizer.zero_grad()

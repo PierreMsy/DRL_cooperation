@@ -14,17 +14,35 @@ class BufferCreator:
     def create(self, config):
         return self.builders[config.buffer_type](config)
 
+def stack_batch_by_agent(batch):
+    '''
+    batch [np.ndarray] :  batch of argument of some experiences.
+    - if batch is either reward or done, just stack the values.
+    - if batch is a full action / obs / next_obs stack the values by agent.
+    '''
+    if isinstance(batch[0], np.ndarray):
+        return _group_by_agent(batch)
+    else:
+        return np.vstack(batch)
+
+def _group_by_agent(batch):
+    '''
+    batch : either a batch by agent: np 3 dimentional array. 
+    if needed split by agent : 
+        [A1,B1],[A2,B2], ... ,[An,Bn] =>[A1,A2,...,An],[B1,B2,...,Bn] 
+    '''
+    return np.squeeze(np.split(batch, batch.shape[1], axis=1))
+
 class ReplayBuffer:
-    
     def __init__(self, config):
         
         self.Experience = namedtuple('Experience',
-         ['observations', 'actions', 'reward', 'next_observations', 'done'])
+         ['obs_full', 'action_full', 'reward', 'next_obs_full', 'done'])
         self.memory = deque(maxlen=config.buffer_size)
         self.config = config
 
     @abstractmethod
-    def add(self, state, action, reward, next_state, done):
+    def add(self, observations, actions, reward, next_observations, done):
         raise NotImplementedError("Please Implement this method")
 
     @abstractmethod
@@ -34,22 +52,24 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.memory)
 
-    def _convert_to_torch(self, args):
-        #TODO Utilize *kwargs / dict / getattr and config for types. np.asarray?
-        return (torch.from_numpy(np.vstack(arg)).float().to(self.config.device) for arg in args) 
+    def _convert_to_torch(self, x):
+        return torch.from_numpy(x).float().to(self.config.device)
 
 class UniformReplayBuffer(ReplayBuffer):
 
     def __init__(self, config):
         super().__init__(config)
 
-    def add(self, observations, actions, reward, next_observations, done):
+    def add(self, obs_full, action_full, reward, next_obs_full, done):
         '''
         Create an experience tuple from one interaction and add it to the memory
         '''
         experience = self.Experience(
-            observations=observations, actions=actions, reward=reward,
-            next_observations=next_observations, done=done)
+            obs_full=obs_full,
+            action_full=action_full,
+            reward=reward,
+            next_obs_full=next_obs_full,
+            done=done)
         self.memory.append(experience)
 
     def sample(self, batch_size=None):
@@ -61,9 +81,11 @@ class UniformReplayBuffer(ReplayBuffer):
             batch_size = self.config.batch_size
 
         experiences = random.sample(self.memory, batch_size)
-        # do something here to have more convenient shapes
+        batches_experience_args = list(zip(*experiences))
+
         observations_batch, actions_batch, rewards, next_observations_batch, dones =\
-             self._convert_to_torch(zip(*experiences))
+            (self._convert_to_torch(stack_batch_by_agent(
+                    np.array(batch_arg))) for batch_arg in batches_experience_args)
 
         return observations_batch, actions_batch, rewards, next_observations_batch, dones
 

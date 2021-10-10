@@ -43,7 +43,6 @@ class MADDPG_agents():
 
         return np.array(actions)
 
-    # TODO clean method
     def _act_target(self, observations):
         '''
         Used in agent learn to compute the TD target
@@ -53,11 +52,10 @@ class MADDPG_agents():
 
         return actions
 
-    def step(self, observations, actions, rewards, next_observations, dones):
+    def step(self, obs_full, action_full, rewards, next_obs_full, dones):
         '''
         we store in the replay buffer experience as : 
         (x, a1, ... ,an, r, x', done) with x the observations of all the agents.
-        '''
-
+        ''' 
         for agent, reward, done in zip(self.agents, rewards, dones):
-            agent.step(observations, actions, reward, next_observations, done)
+            agent.step(obs_full, action_full, reward, next_obs_full, done)
