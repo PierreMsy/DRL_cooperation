@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from marl_coop import agent
 
 from marl_coop.agent import DDPG_agent
 
@@ -18,7 +19,6 @@ class MADDPG_agents():
         self.context = context
         self.config = config
 
-        # copy ou référence ?
         self._agents_named = {
             agent_name: DDPG_agent(context, agent_config, agent_idx, self) 
                 for agent_idx, (agent_name, agent_config) in enumerate(config.agents.items())}
@@ -33,23 +33,16 @@ class MADDPG_agents():
     def agents_named(self):  
         return self._agents_named
 
-    # TODO clean method
     def act(self, observations, noise=False):
-        
-        actions = []
-        for agent, obs in zip(self.agents, observations):
-            action = agent.act(obs, noise)
-            actions.append(action)
+        actions = np.array(
+            [agent.act(obs, noise) for agent, obs in zip(self.agents, observations)])
+        return actions
 
-        return np.array(actions)
-
-    def _act_target(self, observations):
+    def _act_target(self, obss_full):
         '''
         Used in agent learn to compute the TD target
         '''
-        actions = torch.stack([
-            agent._act_target(obs) for agent, obs in zip(self.agents, observations)])
-
+        actions = [agent._act_target(obss) for agent, obss in zip(self.agents, obss_full)]
         return actions
 
     def step(self, obs_full, action_full, rewards, next_obs_full, dones):
@@ -58,4 +51,4 @@ class MADDPG_agents():
         (x, a1, ... ,an, r, x', done) with x the observations of all the agents.
         ''' 
         for agent, reward, done in zip(self.agents, rewards, dones):
-            agent.step(obs_full, action_full, reward, next_obs_full, done)
+            agent.step(obs_full, action_full, np.array([reward]), next_obs_full, np.array([done]))
