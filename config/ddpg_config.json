@@ -5,8 +5,10 @@
     "batch_size": 64,
     "update_every": 5,
     "device": "cpu",
-    "buffer_type": "uniform",
-    "buffer_size": 10000,
+    "buffer":{
+        "size": 10000,
+        "type": "uniform"
+    },
     "critic":{
         "seed": 1,
         "hidden_layers": [64, 64],

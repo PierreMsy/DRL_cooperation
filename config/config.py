@@ -44,6 +44,14 @@ class MADDPG_configuration:
 
             # Update the agents property
             self.agents[agent_name] = DDPG_configuration(**dict_agent)
+    
+    @classmethod
+    # Alternative "contructor" to load from output
+    def create_from_dict(cls, dict):
+        nbr_agents = len(dict['agents'])
+        obj = cls.__new__(cls)
+        cls.__init__(obj, nbr_agents, agents_config=dict['agents'])
+        return obj
             
 class AgentConfiguration:
 
@@ -99,8 +107,7 @@ class DDPG_configuration(AgentConfiguration):
                  tau=None,
                  batch_size=None,
                  update_every=None,
-                 buffer_size=None,
-                 buffer_type=None,
+                 buffer={},
                  critic={},
                  actor={},
                  noise={}):
@@ -109,13 +116,17 @@ class DDPG_configuration(AgentConfiguration):
             device=device, gamma=gamma, tau=tau,
             batch_size=batch_size, update_every=update_every)
 
-        self.set_attr('buffer_size', buffer_size)
-        self.set_attr('buffer_type', buffer_type)
+        update_dict(self.dict['buffer'], buffer)
+        self.dict['buffer']['batch_size'] = batch_size
+        self.dict['buffer']['device'] = device
+        self.buffer = Buffer_configuration(self.dict['buffer'])
 
         update_dict(self.dict['critic'], critic)
         self.critic = Critic_configuration(self.dict['critic'])
+
         update_dict(self.dict['actor'], actor)
         self.actor = Actor_configuration(self.dict['actor'])
+
         update_dict(self.dict['noise'], noise)
         self.noise = Noise_configuration(self.dict['noise'])
     
@@ -168,20 +179,55 @@ class Actor_configuration:
         return f"""learning rate : {self.optim_kwargs['lr']}
 architecture : {self.architecture}"""
 
+class Buffer_configuration:
+
+    def __init__(self, dict_config):
+        self.size = dict_config['size']
+        self.batch_size = dict_config['batch_size']
+        self.device = dict_config['device']
+        self.type = dict_config['type']
+        self.alpha = dict_config.get('alpha')
+        self.beta = dict_config.get('beta')
+        self.epsilon = dict_config.get('epsilon')
+
+        self.kwargs = {
+            'size' : self.size,
+            'batch_size' : self.batch_size,
+            'device' : self.device,
+            'type' : self.type,
+        }
+        if self.alpha:
+            self.kwargs['alpha'] = self.alpha
+            self.kwargs['beta'] = self.beta
+            self.kwargs['epsilon'] = self.epsilon
+    
+    def __str__(self):
+        return f"""type : {self.type}, size : {self.size}"""
+
 class Noise_configuration:
 
     def __init__(self, dict_config):
 
-        self.method = dict_config['method']
-        self.mu = dict_config['mu']
-        self.sigma = dict_config['sigma']
-        self.theta = dict_config['theta']
+        self.method = dict_config.get('method')
+        self.mu = dict_config.get('mu')
+        self.theta = dict_config.get('theta')
+        self.theta_max = dict_config.get('theta_max')
+        self.theta_grow = dict_config.get('theta_grow')
+        self.sigma = dict_config.get('sigma')
+        self.sigma_min = dict_config.get('sigma_min')
+        self.sigma_decay = dict_config.get('sigma_decay')
 
         self.kwargs = {
             'mu' : self.mu,
+            'theta' : self.theta,
             'sigma' : self.sigma,
-            'theta' : self.theta
         }
+        if self.theta_max:
+            self.kwargs['theta_max'] = self.theta_max
+            self.kwargs['theta_grow'] = self.theta_grow
+        if self.sigma_min:
+            self.kwargs['sigma_min'] = self.sigma_min
+            self.kwargs['sigma_decay'] = self.sigma_decay
 
     def __str__(self):
         return f"""method : {self.method}"""
@@ -191,13 +237,16 @@ def update_dict(d_ref, d_ovr):
     for every specific kv given in d_ovr, change the corresponding
     values in d_ref, the complete and udpated config dictionary.
     """
-    for k_o, v_o in d_ovr.items():
-        if k_o not in d_ref:
-            d_ref[k_o] = v_o
-
-    for k_r,v_r in d_ref.items():
-        if k_r in d_ovr:
-            if type(v_r) == dict:
-                update_dict(d_ref[k_r], d_ovr[k_r])
-            else:
-                d_ref[k_r] = d_ovr[k_r]
+    try:
+        for k_o, v_o in d_ovr.items():
+            if k_o not in d_ref:
+                d_ref[k_o] = v_o
+    
+        for k_r,v_r in d_ref.items():
+            if k_r in d_ovr:
+                if type(v_r) == dict:
+                    update_dict(d_ref[k_r], d_ovr[k_r])
+                else:
+                    d_ref[k_r] = d_ovr[k_r]
+    except:
+        print('dommage...')

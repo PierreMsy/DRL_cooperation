@@ -1,1 +1,1 @@
-from .config import AgentConfiguration, MADDPG_configuration
+from .config import MADDPG_configuration
