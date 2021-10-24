@@ -1,15 +1,14 @@
 import os
 import numpy as np
 import pandas as pd
-
-import torch
-import torch.optim as optim
-from torch import nn
-
 import re
 import matplotlib.pyplot as plt
 from datetime import datetime
 import json
+
+import torch
+import torch.optim as optim
+from torch import nn
 
 
 def to_np(tensor) -> np.ndarray:
@@ -35,7 +34,7 @@ class CriterionCreator():
     def create(self, criterion):
         return self.builders[criterion]()
 
-def _get_files(path, key, day, month, year):
+def get_files(path, key, day, month, year):
 
     files = [
     f for f in os.listdir(path) 
@@ -57,43 +56,20 @@ def load_scores(path=None, day=None, month=None, year=None,
     
     if path is None:
         path = os.path.join(os.path.dirname(__file__), r'./../../output/score')
-    files = _get_files(path, key, day, month, year)
+    files = get_files(path, key, day, month, year)
     
     if display:
         print(files)
         
     res = {}
     for f in files:
-        res[f[15:]] = pd.read_csv(os.path.join(path, f))
+        score_key = f[15:].replace('.csv','')
+        res[score_key] = pd.read_csv(os.path.join(path, f))
     return res
-
-def load_agent(key, agent, path=None, day=None, month=None, year=None):
-
-    if path is None:
-        path = os.path.join(os.path.dirname(__file__), r'./../../output/model')
-    files = _get_files(path, key, day, month, year)
-
-    if len(files) > 2:
-        raise Exception('Please add temporal information, too much models matched the given key:\n'+
-        f'Found files :{files}\nInput key : {key}, day : {day}, month : {month}, year : {year}.')
-
-    actor_model = [f for f in files if 'actor' in f][0]
-    actor_checkpoint = torch.load(os.path.join(path,actor_model))
-
-    agent.actor_network.load_state_dict(actor_checkpoint)
-    agent.actor_target_network.load_state_dict(actor_checkpoint)
-
-    critic_model = [f for f in files if 'critic' in f][0]
-    critic_checkpoint = torch.load(os.path.join(path, critic_model))
-
-    agent.critic_network.load_state_dict(critic_checkpoint)
-    agent.critic_target_network.load_state_dict(critic_checkpoint)
-
-    return agent
 
 def plot_scores(dic_scores, window_size=20, target_score=None):
     
-    fig, axe = plt.subplots(1,1,figsize=(13,7), dpi=200)
+    fig, axe = plt.subplots(1,1,figsize=(12,6), dpi=175)
 
     max_len = 0
     for key, result in dic_scores.items():
@@ -111,31 +87,43 @@ def plot_scores(dic_scores, window_size=20, target_score=None):
 
     axe.set_ylabel('Score')
     axe.set_xlabel('Episode #')
-    fig.legend(bbox_to_anchor=(1, .85), loc='upper left')
+    fig.legend(bbox_to_anchor=(.985, .98), loc='upper left')
+    plt.tight_layout()
 
 def create_time_suffix():
     now = datetime.now()
     return f'{str(now.year)[-2:]}_{now.month:02}_{now.day:02}_{now.hour:02}h{now.minute:02}'
 
-def save_scores(scores, key, path):
+def save_scores(scores, scores_by_agent, key, path):
 
-    df_score = pd.DataFrame(np.vstack((range(1,len(scores)+1),scores)).T, columns=['episode','score'])
-    df_score.episode = df_score.episode.astype(int)
+    df_scores = pd.DataFrame({
+        f'score_{agent_name}' : score for agent_name, score in scores_by_agent.items()
+    })
+    df_scores['score'] = scores
 
     print(' ... saving score ...')
-    df_score.to_csv(os.path.join(path, f'{create_time_suffix()}_{key}'), index=False)
+    df_scores.to_csv(os.path.join(path, f'{create_time_suffix()}_{key}.csv'), index=False)
     
-def save_AC_models(agent, key, path):
+def save_AC_models(MA_agent, key, path):
 
-    file_name_base = os.path.join(path, f'{create_time_suffix()}_{key}')
+    file_name_base =f'{create_time_suffix()}_{key}'
+    # absolute file path to avoir max 260 char bug.
+    file_path = os.path.abspath(os.path.join(path, file_name_base))
     
-    if hasattr(agent, "actor_network"):
-        print('... saving actor ...')
-        torch.save(agent.actor_network.state_dict(), file_name_base + '_actor.pth')
+    if not os.path.exists(file_path):
+        os.makedirs(file_path)
         
-    if hasattr(agent, "critic_network"):
-        print('... saving critic ...')
-        torch.save(agent.critic_network.state_dict(), file_name_base + '_critic.pth')
+    for agent_name, agent in MA_agent.agents_named.items():
+        
+        if hasattr(agent, "actor_network"):
+            print('... saving actor ...')
+            torch.save(agent.actor_network.state_dict(),
+                       os.path.join(file_path, f'{file_name_base}_{agent_name}_actor.pth'))
+            
+        if hasattr(agent, "critic_network"):
+            print('... saving critic ...')
+            torch.save(agent.critic_network.state_dict(),
+                       os.path.join(file_path, f'{file_name_base}_{agent_name}_critic.pth'))
 
 def save_configuration(agent, key, path):
     
@@ -143,3 +131,22 @@ def save_configuration(agent, key, path):
     
     with open(config_file_name, 'w') as config_file:
         json.dump(agent.config.dict, config_file)
+
+def filter_scores_on_averaged_threshold(dict_scores, th_score, window_size, sup=True):
+
+    def has_at_least_mean_score(scores, th_score, window_size):
+        return np.max((np.array([np.mean(scores[i:i+window_size]) for i in range(len(scores))]))) >= th_score 
+    
+    def has_at_most_mean_score(scores, th_score, window_size):
+        return np.max((np.array([np.mean(scores[i:i+window_size]) for i in range(len(scores))]))) < th_score 
+    
+    if sup:
+        func = has_at_least_mean_score
+    else:
+        func = has_at_most_mean_score
+    
+    res = {
+        k:v for k,v in dict_scores.items() if func(np.array(v.score), th_score, window_size)
+    }
+    
+    return res

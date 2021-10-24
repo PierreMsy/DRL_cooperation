@@ -33,11 +33,12 @@ class Critic_network_BN(nn.Module):
         self.seed = torch.manual_seed(config.seed)
         self.config = config
 
-        self.fc1 = nn.Linear(context.state_size * context.nbr_agents, config.hidden_layers[0])
+        feature_size = context.state_size * context.nbr_agents +\
+                         context.action_size * context.nbr_agents
+        self.fc1 = nn.Linear(feature_size, config.hidden_layers[0])
         self.bn1 = nn.LayerNorm(config.hidden_layers[0])
 
-        self.fc2 = nn.Linear(config.hidden_layers[0] + context.action_size * context.nbr_agents,
-                             config.hidden_layers[1])
+        self.fc2 = nn.Linear(config.hidden_layers[0], config.hidden_layers[1])
         self.bn2 = nn.LayerNorm(config.hidden_layers[1])
 
         self.fc_to_Q = nn.Linear(config.hidden_layers[1], 1)
@@ -65,20 +66,20 @@ class Critic_network_BN(nn.Module):
         torch.nn.init.uniform_(self.fc_to_Q.weight.data, -spread, spread)
         torch.nn.init.uniform_(self.fc_to_Q.bias.data, -spread, spread)
 
-    def forward(self, observations, actions):
+    def forward(self, obss_full, actions_full):
 
-        # stack ?
-        obss_flat = torch.cat(observations)
-        actions_flats = torch.cat(actions)
+        # flatten the full obs / action
+        obss_flat = torch.cat(obss_full, dim=1)
+        action_flats = torch.cat(actions_full, dim=1)
+        feature = torch.cat((obss_flat, action_flats), dim=1)
 
-        obs_features = self.bn1(self.fc1(obss_flat))
-        obs_features = F.relu(obs_features)
+        features = self.bn1(self.fc1(feature))
+        features = F.relu(features)
 
-        obs_features_actions =  torch.cat((obs_features, actions_flats), dim=1)
-        obs_actions_features =  self.bn2(self.fc2(obs_features_actions))
-        obs_actions_features = F.relu(obs_actions_features)
+        features =  self.bn2(self.fc2(features))
+        features = F.relu(features)
         
-        Q_hat = self.fc_to_Q(obs_actions_features)
+        Q_hat = self.fc_to_Q(features)
 
         return Q_hat
 
