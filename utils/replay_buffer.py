@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import random
 from collections import deque, namedtuple
@@ -8,37 +7,27 @@ class BufferCreator:
 
     def __init__(self):
         self.builders = {
-            'uniform': lambda config: UniformReplayBuffer(config)
+            'uniform': lambda config: UniformReplayBuffer(config),
+            'prioritized': lambda config: PrioritizedReplayBuffer(config)
         }
     
     def create(self, config):
-        return self.builders[config.buffer_type](config)
+        return self.builders[config.type](config)
 
-def stack_batch_by_agent(batch):
+def convert_to_agent_tensor(batch, device='cpu'):
     '''
-    batch [np.ndarray] :  batch of argument of some experiences.
-    - if batch is either reward or done, just stack the values.
-    - if batch is a full action / obs / next_obs stack the values by agent.
+    Convert np array : [batch * agent * size]
+    to torch : [agent * agent * size]
     '''
-    if isinstance(batch[0], np.ndarray):
-        return _group_by_agent(batch)
-    else:
-        return np.vstack(batch)
-
-def _group_by_agent(batch):
-    '''
-    batch : either a batch by agent: np 3 dimentional array. 
-    if needed split by agent : 
-        [A1,B1],[A2,B2], ... ,[An,Bn] =>[A1,A2,...,An],[B1,B2,...,Bn] 
-    '''
-    return np.squeeze(np.split(batch, batch.shape[1], axis=1))
+    convert_to_torch = lambda x, device : torch.tensor(x).float().to(device)
+    return [convert_to_torch(agent_args, device) for agent_args in zip(*batch)]
 
 class ReplayBuffer:
     def __init__(self, config):
         
         self.Experience = namedtuple('Experience',
          ['obs_full', 'action_full', 'reward', 'next_obs_full', 'done'])
-        self.memory = deque(maxlen=config.buffer_size)
+        self.memory = deque(maxlen=config.size)
         self.config = config
 
     @abstractmethod
@@ -52,13 +41,11 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.memory)
 
-    def _convert_to_torch(self, x):
-        return torch.from_numpy(x).float().to(self.config.device)
-
 class UniformReplayBuffer(ReplayBuffer):
 
     def __init__(self, config):
         super().__init__(config)
+        self.is_PER = False
 
     def add(self, obs_full, action_full, reward, next_obs_full, done):
         '''
@@ -72,20 +59,68 @@ class UniformReplayBuffer(ReplayBuffer):
             done=done)
         self.memory.append(experience)
 
-    def sample(self, batch_size=None):
+    def sample(self, sample_size=None):
         '''
         Random sample as much experiences as requested by the batch_size 
         return for each element of the experience a batch of data.
         '''
-        if batch_size is None:
-            batch_size = self.config.batch_size
+        if sample_size is None:
+            sample_size = self.config.batch_size
 
-        experiences = random.sample(self.memory, batch_size)
+        experiences = random.sample(self.memory, sample_size)
         batches_experience_args = list(zip(*experiences))
 
-        observations_batch, actions_batch, rewards, next_observations_batch, dones =\
-            (self._convert_to_torch(stack_batch_by_agent(
-                    np.array(batch_arg))) for batch_arg in batches_experience_args)
+        observations_batch, actions_batch, rewards, next_observations_batch, dones = (
+            convert_to_agent_tensor(batch_arg, self.config.device) 
+                for batch_arg in batches_experience_args)
 
         return observations_batch, actions_batch, rewards, next_observations_batch, dones
 
+class PrioritizedReplayBuffer(ReplayBuffer):
+    def __init__(self, config):
+        '''
+        The priorities have to be included in the experiences to adapt the approximation
+        of the gradient using a non uniform sampling of the experiences.
+        In addition, the priorities are stored separately to ease the sampling. 
+        '''
+        super().__init__(config)
+        self.is_PER = True
+        self.Experience = namedtuple('Experience',
+            ['obs_full', 'action_full', 'reward', 'next_obs_full', 'done', 'priority'])
+        self.buffer_priority = deque(maxlen=config.size) 
+        
+    def add(self, obs_full, action_full, reward, next_obs_full, done, td_error):
+        '''
+        Compute the priority using the td_error and the hyperparameters.
+        Create an experience tuple from one interaction and add it to the memory.
+        '''
+        priority = (abs(td_error) + self.config.epsilon) ** self.config.alpha
+
+        experience = self.Experience(
+            obs_full=obs_full,
+            action_full=action_full,
+            reward=reward,
+            next_obs_full=next_obs_full,
+            done=done,
+            priority=priority)
+        self.memory.append(experience)
+        self.buffer_priority.append(priority)
+
+    def sample(self, sample_size=None):
+        '''
+        Random sample as much experiences as requested by the batch_size 
+        return for each element of the experience a batch of data.
+        '''
+        if sample_size is None:
+            sample_size = self.config.batch_size
+
+        experiences = random.choices(self.memory,
+                                     weights=self.buffer_priority, cum_weights=None,
+                                     k=sample_size)
+        batches_experience_args = list(zip(*experiences))
+
+        observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities = (
+            convert_to_agent_tensor(batch_arg, self.config.device) 
+                for batch_arg in batches_experience_args)
+
+        return observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities
