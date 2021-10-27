@@ -4,7 +4,7 @@ from marl_coop import agent
 
 from marl_coop.agent import DDPG_agent
 
-# TODO PER and "custom tree search"
+# TODO PER and sumtree search
 # TODO from tensorboardX import SummaryWriter
 # TODO import imageio To save gif
 

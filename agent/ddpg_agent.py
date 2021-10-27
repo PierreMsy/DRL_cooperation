@@ -69,11 +69,13 @@ class DDPG_agent(Base_agent):
             td_error  = self._compute_td_error(obs_full, action_full, reward, next_obs_full, done)
             self.buffer.add(obs_full, action_full, reward, next_obs_full, done, td_error)
             if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
-                self.learn_with_PER()
+                for _ in range(self.config.learing_per_update):
+                    self.learn_with_PER()
         else:
             self.buffer.add(obs_full, action_full, reward, next_obs_full, done)
             if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
-                self.learn()
+                for _ in range(self.config.learing_per_update):
+                    self.learn()
                 
 
     def learn(self):
@@ -87,40 +89,37 @@ class DDPG_agent(Base_agent):
         - The actor is updated using direct approximates of the state-action values from the critic.
           value to maximize w.r.t θ : Q_w(s(t), µ_θ(s(t+1)))  
         '''
-        obss_full_batch, actions_full, rewards, next_obss_full, dones =\
+        obss_full, actions_full, rewards, next_obss_full, dones =\
             self.buffer.sample()
 
         # from a list of a flat array to an array of array of one element.
         rewards = rewards[0].view(-1,1)
         dones = dones[0].view(-1,1)
 
-        # BUG fix : obss_full_batch => next_obss_full
         next_actions_full = self.maddpg._act_target(next_obss_full)
-        TD_targets = rewards + self.config.gamma * \
+        Q_value_targets = rewards + self.config.gamma * \
             self.critic_target_network(next_obss_full, next_actions_full) * (1 - dones)
 
-        Q_values = self.critic_network(obss_full_batch, actions_full)
+        Q_values = self.critic_network(obss_full, actions_full)
 
-        loss = self.critic_criterion(Q_values, TD_targets)
-
+        critic_loss = self.critic_criterion(Q_values, Q_value_targets)
         #self.writer.add_scalar(f'agent_{self.index}_critic_loss', loss)
-        self.critic_loss.append(loss)
-
         self.critic_network.optimizer.zero_grad()
-        loss.backward()
+        critic_loss.backward()
+        if self.config.use_gradient_clipping:
+            torch.nn.utils.clip_grad_norm_(self.critic_network.parameters(), 1)
         self.critic_network.optimizer.step()
 
         # actions have to be recomputed because the computation graph of the next actions has be thrown away
         actions_taken_full = [
             agent.actor_network(obss) if agent.index == idx  else  agent.actor_network(obss).detach()
-                for idx, (agent, obss) in enumerate(zip(self.maddpg.agents, obss_full_batch))]
+                for idx, (agent, obss) in enumerate(zip(self.maddpg.agents, obss_full))]
 
-        
         Q_values = self.critic_target_network(next_obss_full, actions_taken_full) 
-        loss = - (Q_values).mean()
+        actor_loss = - (Q_values).mean()
 
         self.actor_network.optimizer.zero_grad()
-        loss.backward()
+        actor_loss.backward()
         self.actor_network.optimizer.step()
 
         soft_update(self.actor_target_network, self.actor_network, self.config.tau)
@@ -222,6 +221,3 @@ def soft_update(target_network, netwok, tau):
     for target_param, local_param in zip(target_network.parameters(), netwok.parameters()):
         target_param.data.copy_(
             (1.0 - tau) * target_param.data + tau * local_param.data)
-
-
-    

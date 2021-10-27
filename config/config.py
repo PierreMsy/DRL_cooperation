@@ -3,8 +3,6 @@ import os
 from copy import deepcopy
 
 
-##TODO Make it possible to override specifc agent architecture.
-
 PATH_JSON_MADDPG = os.path.join(os.path.dirname(__file__),
     r'./maddpg_config.json')
 PATH_JSON_DDPG = os.path.join(os.path.dirname(__file__),
@@ -73,7 +71,9 @@ class AgentConfiguration:
                  gamma=None,
                  tau=None,
                  batch_size=None,
-                 update_every=None):
+                 update_every=None,
+                 use_gradient_clipping=None,
+                 learing_per_update=None):
 
         if base_dict_path:
             with open(base_dict_path, 'r') as json_config:
@@ -88,6 +88,9 @@ class AgentConfiguration:
         self.set_attr('tau', tau) # target net soft update rate
         self.set_attr('batch_size', batch_size)
         self.set_attr('update_every', update_every)
+        self.set_attr('use_gradient_clipping', use_gradient_clipping)
+        self.set_attr('learing_per_update', learing_per_update)
+        
 
     def __str__(self):
         representation = f""" *** BASE ***
@@ -107,18 +110,22 @@ class DDPG_configuration(AgentConfiguration):
                  tau=None,
                  batch_size=None,
                  update_every=None,
+                 use_gradient_clipping=None,
+                 learing_per_update=None,
                  buffer={},
                  critic={},
                  actor={},
                  noise={}):
         super().__init__(seed=seed,
-            base_dict_path=PATH_JSON_DDPG,
-            device=device, gamma=gamma, tau=tau,
-            batch_size=batch_size, update_every=update_every)
+            base_dict_path=PATH_JSON_DDPG, device=device,
+            gamma=gamma, tau=tau, batch_size=batch_size, 
+            update_every=update_every,
+            use_gradient_clipping=use_gradient_clipping,
+            learing_per_update=learing_per_update)
 
+        self.dict['buffer']['batch_size'] = self.batch_size
+        self.dict['buffer']['device'] = self.device
         update_dict(self.dict['buffer'], buffer)
-        self.dict['buffer']['batch_size'] = batch_size
-        self.dict['buffer']['device'] = device
         self.buffer = Buffer_configuration(self.dict['buffer'])
 
         update_dict(self.dict['critic'], critic)
@@ -157,6 +164,8 @@ class Critic_configuration:
         self.optim_kwargs = {
             'lr' : dict_config['learning_rate']
         }
+        if 'momentum' in dict_config:
+            self.optim_kwargs['momentum'] = dict_config['momentum']
     
     def __str__(self):
         return f"""learning rate : {self.optim_kwargs['lr']}        
@@ -174,6 +183,8 @@ class Actor_configuration:
         self.optim_kwargs = {
             'lr' : dict_config['learning_rate']
         }
+        if 'momentum' in dict_config:
+            self.optim_kwargs['momentum'] = dict_config['momentum']
     
     def __str__(self):
         return f"""learning rate : {self.optim_kwargs['lr']}
