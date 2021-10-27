@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import random
 from collections import deque, namedtuple
 from abc import abstractmethod
@@ -20,7 +21,7 @@ def convert_to_agent_tensor(batch, device='cpu'):
     to torch : [agent * agent * size]
     '''
     convert_to_torch = lambda x, device : torch.tensor(x).float().to(device)
-    return [convert_to_torch(agent_args, device) for agent_args in zip(*batch)]
+    return [convert_to_torch(np.array(agent_args), device) for agent_args in zip(*batch)]
 
 class ReplayBuffer:
     def __init__(self, config):
@@ -66,7 +67,7 @@ class UniformReplayBuffer(ReplayBuffer):
         '''
         if sample_size is None:
             sample_size = self.config.batch_size
-
+        
         experiences = random.sample(self.memory, sample_size)
         batches_experience_args = list(zip(*experiences))
 
