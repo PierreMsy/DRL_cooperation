@@ -21,6 +21,7 @@ class Runner:
             
             scores = deque()
             scores_by_agent = {k:deque() for k in MA_agents.agents_named}
+
             scores_target = deque(maxlen=target_over)
             scores_window = deque(maxlen=average_on)
             is_solved = ''
@@ -50,19 +51,19 @@ class Runner:
                     
                     if np.any(dones):
 
-                        if episode % 1000 == 0:
-                            continue
+                        if (episode % 1000 == 0) & hasattr(MA_agents, 'agents') & hasattr(MA_agents.agents[0].noise, 'sigma_init'):
                             if MA_agents.agents[0].noise.sigma != MA_agents.agents[0].noise.sigma_init:
                                 print(MA_agents.agents[0].noise)
 
                         scores.append(score)
-                        for key,reward in zip(scores_by_agent.keys(), score_by_agent):
-                            scores_by_agent[key].append(reward)
+                        if hasattr(MA_agents, 'agents_named'):
+                            for key,reward in zip(scores_by_agent.keys(), score_by_agent):
+                                scores_by_agent[key].append(reward)
 
                         scores_target.append(score)
                         scores_window.append(score)
                         score_averaged = np.mean(list(scores_window))
-                        print(f"\rEpisode {episode} Score: {score_averaged}{is_solved}",
+                        print(f"\rEpisode {episode} Score: {round(score_averaged,5)}{is_solved}",
                             end='\r')
                         if target_score:
                             if (len(is_solved) == 0) & (np.mean(list(scores_target)) > target_score):

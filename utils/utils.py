@@ -18,7 +18,11 @@ class OptimizerCreator():
 
     def __init__(self):
         self.builders = {
-            'Adam': lambda parameters, kwargs : optim.Adam(parameters, **kwargs)
+            'Adam': lambda parameters, kwargs : optim.Adam(parameters, **kwargs),
+            'SGD' : lambda parameters, kwargs : optim.SGD(parameters, **kwargs),
+            'RMSprop' : lambda parameters, kwargs : optim.RMSprop(parameters, **kwargs),
+            'Adadelta' : lambda parameters, kwargs : optim.Adadelta(parameters, **kwargs),
+            'NAdam' : lambda parameters, kwargs : optim.NAdam(parameters, **kwargs)
         }
 
     def create(self, optimizer, parameters, kwargs):

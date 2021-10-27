@@ -49,6 +49,7 @@ class Context:
         representation = f""" *** CONTEXT ***
 state_size : {self.state_size}
 action_size : {self.action_size}
-action_range : [{self.action_min}, {self.action_max}] 
+action_range : [{self.action_min}, {self.action_max}]
+number of agents : {self.nbr_agents}
  """
         return representation
