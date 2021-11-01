@@ -86,15 +86,19 @@ class SelfMADDPG_agent(Base_agent):
         
         '''
         obss_full, actions_full, rewards, next_obss_full, dones = self.buffer.sample()
-        # transform tensor([[1],[0],[0]],[[0],[0],[1]]) into tensor([[1,0],[0,0],[0,1]])
-        dones = torch.cat(dones, dim=1)
-        rewards = torch.cat(rewards, dim=1)
+        dones = torch.stack(dones)
+        rewards = torch.stack(rewards)
 
         next_actions_full = [self.actor_target_network.forward(obss) for obss in obss_full]
-        Q_value_targets = rewards + self.config.gamma * \
-            self.critic_target_network(next_obss_full, next_actions_full) * (1 - dones)
+        next_obss_by_agent = _create_view_by_agent(next_obss_full, self.context.nbr_agents)
+        next_actions_by_agent = _create_view_by_agent(next_actions_full, self.context.nbr_agents)
+        with torch.no_grad():
+            Q_value_nexts = self.critic_target_network(next_obss_by_agent, next_actions_by_agent)
+        Q_value_targets = rewards + self.config.gamma * Q_value_nexts * (1 - dones)
 
-        Q_values = self.critic_network(obss_full, actions_full) * torch.ones_like(dones)
+        obss_by_agent = _create_view_by_agent(obss_full, self.context.nbr_agents)
+        actions_by_agent = _create_view_by_agent(actions_full, self.context.nbr_agents)
+        Q_values = self.critic_network(obss_by_agent, actions_by_agent)
 
         critic_loss = self.critic_criterion(Q_values, Q_value_targets)
         self.critic_network.optimizer.zero_grad()
@@ -104,7 +108,8 @@ class SelfMADDPG_agent(Base_agent):
         self.critic_network.optimizer.step()
 
         actions_taken_full = [self.actor_target_network.forward(obss) for obss in obss_full]
-        Q_values = self.critic_target_network(next_obss_full, actions_taken_full) 
+        actions_taken_by_agent = _create_view_by_agent(actions_taken_full, self.context.nbr_agents)
+        Q_values = self.critic_target_network(obss_by_agent, actions_taken_by_agent) 
 
         actor_loss = - (Q_values).mean()
         self.actor_network.optimizer.zero_grad()
@@ -122,5 +127,12 @@ def soft_update(target_network, netwok, tau):
         target_param.data.copy_(
             (1.0 - tau) * target_param.data + tau * local_param.data)
 
+def _create_view_by_agent(x, nbr_agents):
+    '''
+    '''
+    res = [
+        torch.roll(torch.stack(x), i, dims=0) 
+            for i in range(nbr_agents)]
+    return res
 
     
