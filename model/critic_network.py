@@ -68,10 +68,13 @@ class Critic_network_BN(nn.Module):
 
     def forward(self, obss_full, actions_full):
 
+        dim_agent = obss_full[0].dim() - 1
+        assert actions_full[0].dim() - 1 == dim_agent
+
         # flatten the full obs / action
-        obss_flat = torch.cat(obss_full, dim=1)
-        action_flats = torch.cat(actions_full, dim=1)
-        feature = torch.cat((obss_flat, action_flats), dim=1)
+        obss_flat = torch.cat(obss_full, dim=dim_agent)
+        action_flats = torch.cat(actions_full, dim=dim_agent)
+        feature = torch.cat((obss_flat, action_flats), dim=dim_agent)
 
         features = self.bn1(self.fc1(feature))
         features = F.relu(features)
