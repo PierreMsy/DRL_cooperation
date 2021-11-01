@@ -97,8 +97,9 @@ class DDPG_agent(Base_agent):
         dones = dones[0].view(-1,1)
 
         next_actions_full = self.maddpg._act_target(next_obss_full)
-        Q_value_targets = rewards + self.config.gamma * \
-            self.critic_target_network(next_obss_full, next_actions_full) * (1 - dones)
+        with torch.no_grad():
+            Q_value_nexts = self.critic_target_network(next_obss_full, next_actions_full)
+        Q_value_targets = rewards + self.config.gamma * Q_value_nexts * (1 - dones)
 
         Q_values = self.critic_network(obss_full, actions_full)
 
@@ -115,7 +116,7 @@ class DDPG_agent(Base_agent):
             agent.actor_network(obss) if agent.index == idx  else  agent.actor_network(obss).detach()
                 for idx, (agent, obss) in enumerate(zip(self.maddpg.agents, obss_full))]
 
-        Q_values = self.critic_target_network(next_obss_full, actions_taken_full) 
+        Q_values = self.critic_target_network(obss_full, actions_taken_full) 
         actor_loss = - (Q_values).mean()
 
         self.actor_network.optimizer.zero_grad()
@@ -136,7 +137,7 @@ class DDPG_agent(Base_agent):
         - The actor is updated using direct approximates of the state-action values from the critic.
           value to maximize w.r.t θ : Q_w(s(t), µ_θ(s(t+1)))  
         '''
-        obss_full_batch, actions_full, rewards, next_obss_full, dones, priorities =\
+        obss_full, actions_full, rewards, next_obss_full, dones, priorities =\
             self.buffer.sample()
 
         # from a list of a flat array to an array of array of one element.
@@ -146,12 +147,12 @@ class DDPG_agent(Base_agent):
 
         gradient_correction = (1/self.config.batch_size * 1/priorities).pow(self.config.buffer.beta)
 
-        # BUG fix : obss_full_batch => next_obss_full
         next_actions_full = self.maddpg._act_target(next_obss_full)
-        TD_targets = rewards + self.config.gamma * \
-            self.critic_target_network(next_obss_full, next_actions_full) * (1 - dones)
+        with torch.no_grad():
+            Q_value_nexts = self.critic_target_network(next_obss_full, next_actions_full)
+        TD_targets = rewards + self.config.gamma * Q_value_nexts * (1 - dones)
 
-        Q_values = self.critic_network(obss_full_batch, actions_full)
+        Q_values = self.critic_network(obss_full, actions_full)
         # TODO The priority of the experience has to be updated there.
         loss = self.critic_criterion(Q_values * gradient_correction, TD_targets * gradient_correction)
 
@@ -165,9 +166,9 @@ class DDPG_agent(Base_agent):
         # actions have to be recomputed because the computation graph of the next actions has be thrown away
         actions_taken_full = [
             agent.actor_network(obss) if agent.index == idx  else  agent.actor_network(obss).detach()
-                for idx, (agent, obss) in enumerate(zip(self.maddpg.agents, obss_full_batch))]
+                for idx, (agent, obss) in enumerate(zip(self.maddpg.agents, obss_full))]
                 
-        Q_values = self.critic_target_network(next_obss_full, actions_taken_full) 
+        Q_values = self.critic_target_network(obss_full, actions_taken_full) 
         loss = - (gradient_correction * Q_values).mean()
 
         self.actor_network.optimizer.zero_grad()
