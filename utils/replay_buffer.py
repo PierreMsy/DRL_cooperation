@@ -4,6 +4,8 @@ import random
 from collections import deque, namedtuple
 from abc import abstractmethod
 
+from marl_coop.utils.sumTree import SumTree
+
 class BufferCreator:
 
     def __init__(self):
@@ -125,3 +127,38 @@ class PrioritizedReplayBuffer(ReplayBuffer):
                 for batch_arg in batches_experience_args)
 
         return observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities
+
+class PrioritizedSumTreeBuffer():
+
+    def __init__(self, config):
+        self.is_PER = True
+        self.Experience = namedtuple('Experience',
+            ['obs_full', 'action_full', 'reward', 'next_obs_full', 'done', 'priority'])
+        self.memory = SumTree(tree_size=config.size)
+
+    def add(self, obs_full, action_full, reward, next_obs_full, done, error):
+
+        priority = self._compute_priority(error)
+
+        experience = self.Experience(
+            obs_full=obs_full,
+            action_full=action_full,
+            reward=reward,
+            next_obs_full=next_obs_full,
+            done=done,
+            priority=priority)
+
+        self.memory.add(experience, priority)
+
+    def sample(self, sample_size=None):
+
+        if not sample_size:
+            sample_size = self.config.batch_size
+        
+        experiences = self.memory.sample(sample_size)
+
+    def update_experiences_priority(self, errors):
+        pass
+
+    def _compute_priority(self, error):
+        return (abs(error) + self.config.epsilon) ** self.config.alpha
