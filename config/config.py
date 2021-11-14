@@ -94,7 +94,7 @@ class AgentConfiguration:
 
     def __str__(self):
         representation = f""" *** BASE ***
- device : {self.device}
+ device : {self.device}u
  gamma : {self.gamma}
  tau : {self.tau}
  batch_size : {self.batch_size}
@@ -218,15 +218,19 @@ class Buffer_configuration:
 class Noise_configuration:
 
     def __init__(self, dict_config):
+        
+        def convert_nbr_updates_to_update_scale(start, end, nbr):
+            scale = (end/start)**(1/nbr)
+            return scale
 
         self.method = dict_config.get('method')
         self.mu = dict_config.get('mu')
         self.theta = dict_config.get('theta')
         self.theta_max = dict_config.get('theta_max')
-        self.theta_grow = dict_config.get('theta_grow')
+        self.theta_nbr_growths = dict_config.get('theta_nbr_growths')
         self.sigma = dict_config.get('sigma')
         self.sigma_min = dict_config.get('sigma_min')
-        self.sigma_decay = dict_config.get('sigma_decay')
+        self.sigma_nbr_decays = dict_config.get('sigma_nbr_decays')
 
         self.kwargs = {
             'mu' : self.mu,
@@ -235,10 +239,13 @@ class Noise_configuration:
         }
         if self.theta_max:
             self.kwargs['theta_max'] = self.theta_max
-            self.kwargs['theta_grow'] = self.theta_grow
+            self.kwargs['theta_grow'] = convert_nbr_updates_to_update_scale(
+                self.theta, self.theta_max, self.theta_nbr_growths)
+                
         if self.sigma_min:
             self.kwargs['sigma_min'] = self.sigma_min
-            self.kwargs['sigma_decay'] = self.sigma_decay
+            self.kwargs['sigma_decay'] = convert_nbr_updates_to_update_scale(
+                self.sigma, self.sigma_min, self.sigma_nbr_decays)
 
     def __str__(self):
         return f"""method : {self.method}"""
