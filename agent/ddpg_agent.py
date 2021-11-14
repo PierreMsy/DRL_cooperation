@@ -65,7 +65,7 @@ class DDPG_agent(Base_agent):
         '''
         self.t_step +=1
 
-        if self.config.buffer.type == 'prioritized':
+        if self.buffer.is_PER:
             td_error  = self._compute_td_error(obs_full, action_full, reward, next_obs_full, done)
             self.buffer.add(obs_full, action_full, reward, next_obs_full, done, td_error)
             if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
@@ -108,7 +108,7 @@ class DDPG_agent(Base_agent):
         self.critic_network.optimizer.zero_grad()
         critic_loss.backward()
         if self.config.use_gradient_clipping:
-            torch.nn.utils.clip_grad_norm_(self.critic_network.parameters(), 1)
+            torch.nn.utils.clip_grad_norm_(self.critic_network.parameters(), self.config.use_gradient_clipping)
         self.critic_network.optimizer.step()
 
         # actions have to be recomputed because the computation graph of the next actions has be thrown away
@@ -153,14 +153,18 @@ class DDPG_agent(Base_agent):
         TD_targets = rewards + self.config.gamma * Q_value_nexts * (1 - dones)
 
         Q_values = self.critic_network(obss_full, actions_full)
-        # TODO The priority of the experience has to be updated there.
-        loss = self.critic_criterion(Q_values * gradient_correction, TD_targets * gradient_correction)
+        with torch.no_grad():
+            errors = (Q_values * gradient_correction) - (TD_targets * gradient_correction)
+        critic_loss = self.critic_criterion(Q_values * gradient_correction, TD_targets * gradient_correction)
+        self.buffer.update_experiences_priority(errors)
 
         #self.writer.add_scalar(f'agent_{self.index}_critic_loss', loss)
-        self.critic_loss.append(loss)
+        self.critic_loss.append(critic_loss)
 
         self.critic_network.optimizer.zero_grad()
-        loss.backward()
+        critic_loss.backward()
+        if self.config.use_gradient_clipping:
+            torch.nn.utils.clip_grad_norm_(self.critic_network.parameters(), self.config.use_gradient_clipping)
         self.critic_network.optimizer.step()
 
         # actions have to be recomputed because the computation graph of the next actions has be thrown away
@@ -169,10 +173,10 @@ class DDPG_agent(Base_agent):
                 for idx, (agent, obss) in enumerate(zip(self.maddpg.agents, obss_full))]
                 
         Q_values = self.critic_target_network(obss_full, actions_taken_full) 
-        loss = - (gradient_correction * Q_values).mean()
+        actor_loss = - (gradient_correction * Q_values).mean()
 
         self.actor_network.optimizer.zero_grad()
-        loss.backward()
+        actor_loss.backward()
         self.actor_network.optimizer.step()
 
         soft_update(self.actor_target_network, self.actor_network, self.config.tau)
@@ -191,7 +195,9 @@ class DDPG_agent(Base_agent):
 
     def _compute_td_error(self, obs_full, action_full, reward, next_obs_full, done):
         '''
-        
+
+        Returns:
+            [float]: the critic error for that experience.
         '''
         def _convert_to_torch(args):
             return [torch.from_numpy(np.expand_dims(arg, axis=0))
@@ -212,8 +218,9 @@ class DDPG_agent(Base_agent):
         self.actor_network.train()
         self.critic_network.train()
 
-        TD_error = (Q_value - TD_target)[0]
-        return TD_error  
+        TD_error = (Q_value - TD_target).item()
+        # TODO Fix this..
+        return np.array([TD_error])
         
 def soft_update(target_network, netwok, tau):
     '''

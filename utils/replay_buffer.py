@@ -11,7 +11,8 @@ class BufferCreator:
     def __init__(self):
         self.builders = {
             'uniform': lambda config: UniformReplayBuffer(config),
-            'prioritized': lambda config: PrioritizedReplayBuffer(config)
+            'prioritized': lambda config: PrioritizedReplayBuffer(config),
+            'prioritized_sumTree': lambda config: PrioritizedSumTreeBuffer(config)
         }
     
     def create(self, config):
@@ -20,7 +21,7 @@ class BufferCreator:
 def convert_to_agent_tensor(batch, device='cpu'):
     '''
     Convert np array : [batch * agent * size]
-    to torch : [agent * agent * size]
+    to torch : [agent * batch * size]
     '''
     convert_to_torch = lambda x, device : torch.tensor(x).float().to(device)
     return [convert_to_torch(np.array(agent_args), device) for agent_args in zip(*batch)]
@@ -128,13 +129,23 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
         return observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities
 
-class PrioritizedSumTreeBuffer():
+    def update_experiences_priority(self, errors):
+        '''
+        Not implemented yet.
+        '''
+        return
+
+class PrioritizedSumTreeBuffer(ReplayBuffer):
 
     def __init__(self, config):
+        '''
+        '''
+        super().__init__(config)
         self.is_PER = True
         self.Experience = namedtuple('Experience',
             ['obs_full', 'action_full', 'reward', 'next_obs_full', 'done', 'priority'])
         self.memory = SumTree(tree_size=config.size)
+        self.sampled_idxs = ()
 
     def add(self, obs_full, action_full, reward, next_obs_full, done, error):
 
@@ -155,10 +166,28 @@ class PrioritizedSumTreeBuffer():
         if not sample_size:
             sample_size = self.config.batch_size
         
-        experiences = self.memory.sample(sample_size)
+        idxs, experiences = self.memory.sample(sample_size)
+        self.sampled_idxs = idxs
+
+        batches_experience_args = list(zip(*experiences))
+        observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities = (
+            convert_to_agent_tensor(batch_arg, self.config.device) 
+                for batch_arg in batches_experience_args)
+
+        return observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities
 
     def update_experiences_priority(self, errors):
-        pass
+
+        errors = errors.numpy()
+        if len(self.sampled_idxs) != len(errors):
+            raise Exception('Error updating the experiences priorities: '+
+                           f'indexes len = {len(self.sampled_idxs)}, errors len = {len(errors)}')
+
+        priorities = [self._compute_priority(error) for error in errors]
+        self.memory.update_priorities(self.sampled_idxs, priorities)
 
     def _compute_priority(self, error):
         return (abs(error) + self.config.epsilon) ** self.config.alpha
+
+    def __len__(self):
+        return len([x for x in self.memory.values if isinstance(x, self.Experience)])
