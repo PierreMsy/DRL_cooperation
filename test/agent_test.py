@@ -1,6 +1,6 @@
 import pytest
 
-from marl_coop.agent import MADDPG_agents, maddpg_agents
+from marl_coop.agent import MADDPG_agents
 from marl_coop.config import MADDPG_configuration
 from marl_coop.utils import Context
 from marl_coop.test.mock import Mock_env
@@ -52,8 +52,8 @@ def test_that_maddpg_agents_can_step(nbr_agents, env):
 def test_that_maddpg_agents_can_learn(nbr_agents, env):
     
     agents_config = {
-        'agent_1': {'update_every': 3, 'batch_size': 3},
-        'agent_2': {'update_every': 3, 'batch_size': 3}
+        'agent_1': {'update_every': 3, 'buffer':{'batch_size': 3}},
+        'agent_2': {'update_every': 3, 'buffer':{'batch_size': 3}}
         }
 
     cfg = MADDPG_configuration(nbr_agents=nbr_agents, agents_config=agents_config)

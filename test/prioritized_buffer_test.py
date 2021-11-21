@@ -44,7 +44,7 @@ def test_that_prioritized_sumTree_experiences_can_be_updated():
         buffer.add(observation, action, reward, next_observation, done, error)
 
     _, _, _, _, _, _ = buffer.sample(3) #sample to unable the priority update
-    buffer.update_experiences_priority([0,0,0]) # the second experience receive 0 as priority
+    buffer.update_experiences_priority(torch.tensor([0,0,0])) # the second experience receive 0 as priority
     buffer.memory.update_priorities([0,2],[0,1]) # update exps 0 & 2 with priorities 0 & 1 
     _, action_batch, _, _, _, _ = buffer.sample(3)
 

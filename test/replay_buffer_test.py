@@ -1,77 +1,82 @@
 import torch
 import numpy as np
 
-from marl_coop.utils.replay_buffer import stack_batch_by_agent
+from marl_coop.utils.replay_buffer import convert_to_agent_tensor
 from marl_coop.utils import BufferCreator
-from marl_coop.test.mock import Mock_config
+from marl_coop.test.mock import Mock_buffer_config
 
 
 def test_group_by_agent_convert_interleaved_agent_experience_into_batch_by_agent():
     
     arg = np.array([[
-            ['A11','A12','A13'],
-            ['B11','B12','B13'],
-            ['C11','C12','C13']
+            [111, 112, 113],
+            [211, 212, 213],
+            [311, 312, 313]
         ],[
-            ['A21','A22','A23'],
-            ['B21','B22','B23'],
-            ['C21','C22','C23']
+            [121, 122, 123],
+            [221, 222, 223],
+            [321, 322, 323]
         ],[
-            ['A31','A32','A33'],
-            ['B31','B32','B33'],
-            ['C31','C32','C33']]])
+            [131, 132, 133],
+            [231, 232, 233],
+            [331, 332, 333]]])
 
-    expected = np.array([[
-            ['A11','A12','A13'],
-            ['A21','A22','A23'],
-            ['A31','A32','A33']
-        ],[
-            ['B11','B12','B13'],
-            ['B21','B22','B23'],
-            ['B31','B32','B33']
-        ],[
-            ['C11','C12','C13'],
-            ['C21','C22','C23'],
-            ['C31','C32','C33']]])
+    expected = [
+        torch.tensor([
+            [111., 112., 113.],
+            [121., 122., 123.],
+            [131., 132., 133.]
+        ]),
+        torch.tensor([
+            [211., 212., 213.],
+            [221., 222., 223.],
+            [231., 232., 233.]
+        ]),
+        torch.tensor([
+            [311., 312., 313.],
+            [321., 322., 323.],
+            [331., 332., 333.]])]
 
-    actual = stack_batch_by_agent(arg)
+    actual = convert_to_agent_tensor(arg)
 
-    assert np.all(actual == expected) == True
+    assert np.all([torch.all(exp == act).numpy() for exp, act in zip(expected, actual)]) == True
 
 def test_group_by_agent_convert_interleaved_agent_experience_into_batch_by_agent_even_not_square():
     
     arg = np.array([[
-            ['A11','A12'],
-            ['B11','B12']
+            [111, 112],
+            [211, 212]
         ],[
-            ['A21','A22'],
-            ['B21','B22']
+            [121, 122],
+            [221, 222]
         ],[
-            ['A31','A32'],
-            ['B31','B32']
+            [131, 132],
+            [231, 232]
         ],[
-            ['A41','A42'],
-            ['B41','B42']
+            [141, 142],
+            [241, 242]
             ]])
 
-    expected = np.array([[
-            ['A11','A12'],
-            ['A21','A22'],
-            ['A31','A32'],
-            ['A41','A42'],
-        ],[
-            ['B11','B12'],
-            ['B21','B22'],
-            ['B31','B32'],
-            ['B41','B42'],]])
+    expected = [
+        torch.tensor([
+            [111., 112.],
+            [121., 122.],
+            [131., 132.],
+            [141., 142.],
+        ]),
+        torch.tensor([
+            [211., 212.],
+            [221., 222.],
+            [231., 232.],
+            [241., 242.]])]
 
-    actual = stack_batch_by_agent(arg)
+    actual = convert_to_agent_tensor(arg)
 
-    assert np.all(actual == expected) == True
+    assert np.all([torch.all(exp == act).numpy() for exp, act in zip(expected, actual)]) == True
 
 def test_buffer_sampling():
 
-    buffer = BufferCreator().create(Mock_config(buffer_size=3, buffer_type='uniform'))
+    buffer = BufferCreator().create(Mock_buffer_config(size=3, type='uniform'))
 
     observations_s = np.array([[[111,112,113],
                                 [121,122,123]
@@ -91,7 +96,7 @@ def test_buffer_sampling():
         buffer.add(observation, action, reward, next_observation, done)
 
     observations_batch, _, _, _, _ = buffer.sample(3)
-    observations_batch, _ = torch.sort(observations_batch, dim=1)
+    observations_batch, _ = torch.sort(torch.stack(observations_batch), dim=1)
 
     expected_observations = torch.from_numpy(np.array([
         [[111,112,113],[211,212,213],[311,312,313]],
