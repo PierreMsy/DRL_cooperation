@@ -7,57 +7,27 @@ from datetime import datetime
 import json
 
 import torch
-import torch.optim as optim
-from torch import nn
 
 
 def to_np(tensor) -> np.ndarray:
     return tensor.cpu().detach().numpy()
 
-class OptimizerCreator():
-
-    def __init__(self):
-        self.builders = {
-            'Adam': lambda parameters, kwargs : optim.Adam(parameters, **kwargs),
-            'SGD' : lambda parameters, kwargs : optim.SGD(parameters, **kwargs),
-            'RMSprop' : lambda parameters, kwargs : optim.RMSprop(parameters, **kwargs),
-            'Adadelta' : lambda parameters, kwargs : optim.Adadelta(parameters, **kwargs),
-            'NAdam' : lambda parameters, kwargs : optim.NAdam(parameters, **kwargs)
-        }
-
-    def create(self, optimizer, parameters, kwargs):
-        return self.builders[optimizer](parameters, kwargs)
-
-class CriterionCreator():
-
-    def __init__(self):
-        self.builders = {
-            'MSE': nn.MSELoss
-        }
-
-    def create(self, criterion):
-        return self.builders[criterion]()
-
-def get_files(path, key, day, month, year):
-
-    files = [
-    f for f in os.listdir(path) 
-        if re.match(r'\d\d_\d\d_\d\d_.*', f)]
-    
-    if year: 
-        files = [f for f in files if f[0:2]==year]
-    if month: 
-        files = [f for f in files if f[3:5]==month]
-    if day: 
-        files = [f for f in files if f[6:8]==day]
-    if key: 
-        files = [f for f in files if f[15:15+len(key)]==key]
-    
-    return files
-
 def load_scores(path=None, day=None, month=None, year=None,
                 key=None, display=False):
-    
+    '''
+    Load and return the scores optionaly for a certain ime period in a dictionary.
+
+    Args:
+        path (str, optional): Path where the scores are stored.
+        day (int, optional): The day of the runs to load.
+        month (int, optional): The month of the runs to load.
+        year (int, optional): The last two digits of the year of the runs to load.
+        key (str, optional): Specific run key to load.
+        display (bool, optional): print the found score files.
+
+    Returns:
+        dict: pandas DataFrame of the scores by run key.
+    '''
     if path is None:
         path = os.path.join(os.path.dirname(__file__), r'./../../output/score')
     files = get_files(path, key, day, month, year)
@@ -72,6 +42,14 @@ def load_scores(path=None, day=None, month=None, year=None,
     return res
 
 def plot_scores(dic_scores, window_size=20, target_score=None):
+    """
+    Plot the global scores of the agents in function of the number of episodes.
+
+    Args:
+        dic_scores (dict): pandas DataFrame of the scores by run key.
+        window_size (int, defaults to 20): The size of the window for the rolling average.
+        target_score (float, optional): Display the given target score as a dotted horizontal line.
+    """
     
     fig, axe = plt.subplots(1,1,figsize=(12,6), dpi=175)
 
@@ -94,10 +72,6 @@ def plot_scores(dic_scores, window_size=20, target_score=None):
     fig.legend(bbox_to_anchor=(.985, .98), loc='upper left')
     plt.tight_layout()
 
-def create_time_suffix():
-    now = datetime.now()
-    return f'{str(now.year)[-2:]}_{now.month:02}_{now.day:02}_{now.hour:02}h{now.minute:02}'
-
 def save_scores(scores, scores_by_agent, key, path):
 
     df_scores = pd.DataFrame({
@@ -106,11 +80,11 @@ def save_scores(scores, scores_by_agent, key, path):
     df_scores['score'] = scores
 
     print(' ... saving score ...')
-    df_scores.to_csv(os.path.join(path, f'{create_time_suffix()}_{key}.csv'), index=False)
+    df_scores.to_csv(os.path.join(path, f'{_create_time_suffix()}_{key}.csv'), index=False)
     
 def save_AC_models(MA_agent, key, path):
 
-    file_name_base =f'{create_time_suffix()}_{key}'
+    file_name_base =f'{_create_time_suffix()}_{key}'
     # absolute file path to avoir max 260 char bug.
     file_path = os.path.abspath(os.path.join(path, file_name_base))
     
@@ -131,18 +105,28 @@ def save_AC_models(MA_agent, key, path):
 
 def save_configuration(agent, key, path):
     
-    config_file_name = os.path.join(path, f'{create_time_suffix()}_{key}.json')
+    config_file_name = os.path.join(path, f'{_create_time_suffix()}_{key}.json')
     
     with open(config_file_name, 'w') as config_file:
         json.dump(agent.config.dict, config_file)
 
 def filter_scores_on_averaged_threshold(dict_scores, th_score, window_size, sup=True):
+    """
+    Filter a given dictionary of scores by its performances compared to a given threshold when
+    averaged on a specific window size.
+
+    Args:
+        dict_scores (dict): dictionary of score to filter.
+        th_score (float): threshold of score that will act as a lower or upped bound to filter.
+        window_size (int): size of the rolling average to compute the performances.
+        sup (bool, default to True): wheter the given threshold is an upper or lower bound.
+    """
 
     def has_at_least_mean_score(scores, th_score, window_size):
-        return np.max((np.array([np.mean(scores[i:i+window_size]) for i in range(len(scores))]))) >= th_score 
+        return np.any((np.array([np.mean(scores[i:i+window_size]) for i in range(len(scores))])) >= th_score) 
     
     def has_at_most_mean_score(scores, th_score, window_size):
-        return np.max((np.array([np.mean(scores[i:i+window_size]) for i in range(len(scores))]))) < th_score 
+        return np.any((np.array([np.mean(scores[i:i+window_size]) for i in range(len(scores))]))< th_score) 
     
     if sup:
         func = has_at_least_mean_score
@@ -154,3 +138,24 @@ def filter_scores_on_averaged_threshold(dict_scores, th_score, window_size, sup=
     }
     
     return res
+
+def get_files(path, key, day, month, year):
+
+    files = [
+    f for f in os.listdir(path) 
+        if re.match(r'\d\d_\d\d_\d\d_.*', f)]
+    
+    if year: 
+        files = [f for f in files if f[0:2]==year]
+    if month: 
+        files = [f for f in files if f[3:5]==month]
+    if day: 
+        files = [f for f in files if f[6:8]==day]
+    if key: 
+        files = [f for f in files if f[15:15+len(key)]==key]
+    
+    return files
+
+def _create_time_suffix():
+    now = datetime.now()
+    return f'{str(now.year)[-2:]}_{now.month:02}_{now.day:02}_{now.hour:02}h{now.minute:02}'
