@@ -3,11 +3,14 @@ from copy import copy
 
 
 class NoiseCreator():
-
+    '''
+    Factory that build the action noise responsible for the exploration of the agent.
+    '''
     def __init__(self):
         self.builders = {
             'OU': lambda size, kwargs : OUActionNoise(size, **kwargs),
-            'scaling_OU': lambda size, kwargs : Scaling_OUActionNoise(size, **kwargs)
+            'scaling_OU': lambda size, kwargs : Scaling_OUActionNoise(size, **kwargs),
+            'gaussian':  lambda size, kwargs : GaussianNoise(size, **kwargs)
         }
 
     def create(self, noise, size, kwargs):
@@ -18,7 +21,6 @@ class OUActionNoise:
     Ornstein-Uhlenbeck process.
     Temporally correlated noise that has a zero mean used to add
     exploratioin to the deterministic policy.
-
     """
     def __init__(self,
                  size,
@@ -26,22 +28,22 @@ class OUActionNoise:
                  theta,
                  sigma):
         """
-            mu : mean
-            theta : attraction of the mean
-            sigma : magnitude of the wiener steps
+        mu : mean
+        theta : attraction of the mean
+        sigma : magnitude of the wiener steps
         """
-        self.mu = mu  * np.ones(size)
+        self.mu = mu  
         self.theta = theta
         self.sigma = sigma
-        self.state = np.zeros_like(self.mu)
+        self.state = np.zeros(size)
+        self.size = size
 
     def sample(self):
         '''
         sample a new point from the OU process, update the state and return a noise
         of the asked size.
         '''
-
-        dx = self.theta * (self.mu - self.state) + self.sigma * np.random.normal(size=self.mu.shape)
+        dx = self.theta * (self.mu - self.state) + self.sigma * np.random.normal()
         x = self.state + dx
 
         self.state = x
@@ -52,8 +54,7 @@ class OUActionNoise:
         sample a new point from the OU process, update the state and return a noise
         of the asked size.
         '''
-
-        dx = self.theta * (self.mu - self.state) + self.sigma * np.random.normal(size=self.mu.shape)
+        dx = self.theta * (self.mu * np.ones(self.size) - self.state) + self.sigma * np.random.normal(size=self.state.shape)
         x = self.state + dx
 
         self.state = x
@@ -99,6 +100,23 @@ class Scaling_OUActionNoise(OUActionNoise):
 
     def __repr__(self):
         representation =(
-            f'OrnsteinUhlenbeckActionNoise(mu={self.mu}, sigma={self.sigma}, theta={self.theta})\n'
-            + f'init values were sigma={self.sigma_init}, theta={self.theta_init}')
+            f'OrnsteinUhlenbeckActionNoise(mu={self.mu}, sigma={round(self.sigma, 4)}/{round(self.sigma_min, 4)}, '+
+            f'theta={round(self.theta, 4)}/{round(self.theta_max, 4)})')
         return representation
+
+class GaussianNoise:
+    '''
+    Simple gaussian noise.
+    '''
+    def __init__(self, 
+                 size,
+                 mu,
+                 sigma):
+        self.size = size
+        self.mu = mu
+
+    def sample(self):
+        return np.random.normal(loc=self.mu, scale=self.sigma, size=self.size)
+
+    def update(self):
+        return
