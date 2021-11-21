@@ -7,7 +7,14 @@ from abc import abstractmethod
 from marl_coop.utils.sumTree import SumTree
 
 class BufferCreator:
-
+    '''
+    Factory that build the buffer parametrized in the config among the possibilities:
+        - uniform : All experiences have an equal probability to be sampled.
+        - prioritized : Experiences have a sample probability proportional
+                        to the error when last seen.
+        - prioritized_sumTree : Same as last but with a storage structure optimized
+                        for large batch sizes.
+    '''
     def __init__(self):
         self.builders = {
             'uniform': lambda config: UniformReplayBuffer(config),
@@ -20,13 +27,16 @@ class BufferCreator:
 
 def convert_to_agent_tensor(batch, device='cpu'):
     '''
-    Convert np array : [batch * agent * size]
-    to torch : [agent * batch * size]
+    Convert list of np arrays : [batch * agent * size]
+    to list of torch tensors : [agent * batch * size]
     '''
     convert_to_torch = lambda x, device : torch.tensor(x).float().to(device)
     return [convert_to_torch(np.array(agent_args), device) for agent_args in zip(*batch)]
 
 class ReplayBuffer:
+    '''
+    Abstract class that lay the structure of all replay buffers.
+    '''
     def __init__(self, config):
         
         self.Experience = namedtuple('Experience',
@@ -46,6 +56,9 @@ class ReplayBuffer:
         return len(self.memory)
 
 class UniformReplayBuffer(ReplayBuffer):
+    '''
+    Simplest replay buffer where all experiences have an equal probability to be sampled.
+    '''
 
     def __init__(self, config):
         super().__init__(config)
@@ -65,8 +78,8 @@ class UniformReplayBuffer(ReplayBuffer):
 
     def sample(self, sample_size=None):
         '''
-        Random sample as much experiences as requested by the batch_size 
-        return for each element of the experience a batch of data.
+        Sample randomly as much experiences as requested by the batch_size.
+        Return for each element of the experience a batch of data.
         '''
         if sample_size is None:
             sample_size = self.config.batch_size
@@ -81,6 +94,10 @@ class UniformReplayBuffer(ReplayBuffer):
         return observations_batch, actions_batch, rewards, next_observations_batch, dones
 
 class PrioritizedReplayBuffer(ReplayBuffer):
+    '''
+    Buffer that will sample more often the experiences that generated a large time difference
+    error indicating a misjudgment by the critic.
+    '''
     def __init__(self, config):
         '''
         The priorities have to be included in the experiences to adapt the approximation
@@ -112,8 +129,9 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
     def sample(self, sample_size=None):
         '''
-        Random sample as much experiences as requested by the batch_size 
-        return for each element of the experience a batch of data.
+        Sample as much experience as requested from a distribution whose sample probability
+        is given by the calculated prioriries.
+        Return for each element of the experience a batch of data.
         '''
         if sample_size is None:
             sample_size = self.config.batch_size
@@ -136,9 +154,16 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         return
 
 class PrioritizedSumTreeBuffer(ReplayBuffer):
-
+    '''
+    Buffer that will sample more often the experiences that generated a large time difference
+    error indicating a misjudgment by the critic.
+    Use a structure called a sum tree to store the experiences that is optimized for sampling
+    non-uniform distribution.
+    '''
     def __init__(self, config):
         '''
+        Indexes of the sampled experience have to be store to allow the update of the priority
+        of those experiences.
         '''
         super().__init__(config)
         self.is_PER = True
@@ -148,7 +173,10 @@ class PrioritizedSumTreeBuffer(ReplayBuffer):
         self.sampled_idxs = ()
 
     def add(self, obs_full, action_full, reward, next_obs_full, done, error):
-
+        '''
+        Compute the priority using the td_error and the hyperparameters.
+        Create an experience tuple from one interaction and add it to the memory.
+        '''
         priority = self._compute_priority(error)
 
         experience = self.Experience(
@@ -162,7 +190,11 @@ class PrioritizedSumTreeBuffer(ReplayBuffer):
         self.memory.add(experience, priority)
 
     def sample(self, sample_size=None):
-
+        '''
+        Sample as much experience as requested from a distribution whose sample probability
+        is given by the calculated priorities.
+        Return for each element of the experience a batch of data.
+        '''
         if not sample_size:
             sample_size = self.config.batch_size
         
@@ -177,7 +209,9 @@ class PrioritizedSumTreeBuffer(ReplayBuffer):
         return observations_batch, actions_batch, rewards, next_observations_batch, dones, priorities
 
     def update_experiences_priority(self, errors):
-
+        '''
+        Update the priorities of the last sampled experience from the given td-errors.
+        '''
         errors = errors.numpy()
         if len(self.sampled_idxs) != len(errors):
             raise Exception('Error updating the experiences priorities: '+

@@ -11,19 +11,28 @@ class Node:
         self.index = -1  
 
 class SumTree:
-
+    '''
+    Tree data-structure optimized to sample from a non-uniform distribution. 
+    Sampling in log(n) instead of n for the naïve approach.
+    '''
     def __init__(self, tree_size):
-        self.size = tree_size
+        '''
+        An empty storage is build for the values.
+        A tree is build with as many leaf nodes as requested by the tree size.
+        The leaf nodes are kept track of and indexed.
+        '''
         self.values = np.zeros(tree_size, dtype=object)
         self.leaf_nodes = None
-        self.tree = self._initialize_tree()
+        self.tree = self._initialize_tree(tree_size)
+        self.size = tree_size
         self.write_index = 0
 
     def add(self, value, priority):
-
+        '''
+        Save a new value using a cyclical index and propagate its new priority in the tree.  
+        '''
         self.values[self.write_index] = value
         self.update_node_priority(self.leaf_nodes[self.write_index], priority)
-
         self.write_index = (self.write_index + 1) % self.size
 
     def sample(self, size):
@@ -35,7 +44,11 @@ class SumTree:
             self.update_node_priority(self.leaf_nodes[idx], priority)
 
     def draw(self):
-
+        '''
+        Sample a value with its index from the sumTree.
+        Details can be found in the link :
+        https://adventuresinmachinelearning.com/sumtree-introduction-python/
+        '''
         node = self.tree
         x = np.random.uniform(node.priority)
 
@@ -49,7 +62,10 @@ class SumTree:
         return node.index, self.values[node.index]
 
     def update_node_priority(self, node, priority):
-        
+        '''
+        Udpate the priority of a node and propagate that change
+        through the rest of the tree. 
+        '''
         def propage_update(node, delta):
             node.priority += delta
             if node.parent:
@@ -60,12 +76,12 @@ class SumTree:
 
         propage_update(node.parent, delta_priority)
 
-    def _initialize_tree(self):
+    def _initialize_tree(self, size):
 
         tree = Node()
         q_nodes = deque([tree])
-        leaf_nodes = deque(maxlen=self.size)
-        nbr_nodes = 2*(self.size - 1)
+        leaf_nodes = deque(maxlen=size)
+        nbr_nodes = 2*(size - 1)
         
         for _ in range(nbr_nodes // 2):
             
