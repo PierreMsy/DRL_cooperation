@@ -1,34 +1,41 @@
 import numpy as np
 import torch
-#from torch.utils.tensorboard import SummaryWriter
 
 from marl_coop.agent import Base_agent
 from marl_coop.model import Actor_network_creator, Critic_network_creator
-from marl_coop.utils import to_np, BufferCreator, CriterionCreator, NoiseCreator
+from marl_coop.model.utils import CriterionCreator
+from marl_coop.utils import to_np, BufferCreator, NoiseCreator
 
 
 class DDPG_agent(Base_agent):
-
     """
     Deep deterministic policy gradient agent.
-    An agent will interact with the environnment to maximize the expected reward.
+    An agent will interact with the environnment to maximize the expected return.
     This agent use a model-free, off-policy actor-critic algorithm using deep function approximators
     that can learn policies in high-dimensional, continuous action spaces.
     """
+    def __init__(self, context, config, index, maddpg):
+        '''
+        Store the config and the context.
+        Instantiate the utilities: the noise function and the replay buffer.
+        Instantiate the critic and the actor networks.
 
-    def __init__(self, context, config, index, maddpg) -> None:
+        Args:
+            context : RL information such as state & action size.
+            config : configuration of the agent and all its subparts.
+            index : number associated with this agent.
+            maddpg : a reference to the meta-agent.
+        '''
         
         self.context = context
         self.config = config
-        #self.writer = SummaryWriter()
         self.critic_loss = list()
 
         self.index = index
         self.maddpg = maddpg
-
-        self.buffer = BufferCreator().create(config.buffer)
         self.t_step = 0
 
+        self.buffer = BufferCreator().create(config.buffer)
         self.noise = NoiseCreator().create(config.noise.method,
             context.action_size, config.noise.kwargs)
 
@@ -42,7 +49,10 @@ class DDPG_agent(Base_agent):
         self.critic_criterion = CriterionCreator().create(config.critic.criterion)
 
     def act(self, observation, noise=False):
-
+        '''
+        Use the actor network to return a action from an observation with or
+        without noise according to the noise parameter.
+        '''
         observation = torch.from_numpy(observation).float().to(self.config.device)
 
         self.actor_network.eval()
@@ -62,32 +72,39 @@ class DDPG_agent(Base_agent):
         '''
         Each centralized action-value function is learned independently using
         experiences defined as (x, a1, ... ,an, r, x', done).
+        If the buffer used is a prioritized experience replay, add the td error the 
+        experience tuple to compute the priority.
         '''
         self.t_step +=1
 
         if self.buffer.is_PER:
             td_error  = self._compute_td_error(obs_full, action_full, reward, next_obs_full, done)
-            self.buffer.add(obs_full, action_full, reward, next_obs_full, done, td_error)
+            self.buffer.add(obs_full, action_full, reward, next_obs_full, done, np.array([td_error]))
+
             if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
                 for _ in range(self.config.learing_per_update):
                     self.learn_with_PER()
         else:
             self.buffer.add(obs_full, action_full, reward, next_obs_full, done)
+
             if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
                 for _ in range(self.config.learing_per_update):
                     self.learn()
                 
-
     def learn(self):
         '''
         Sample experiences from the replay buffer and updates the critic and the actor.
+        
+        The critic use a concatenation of the observations/actions from all agents to learn how to evaluate
+        a situation in a stationary setting as describe in https://arxiv.org/pdf/1706.02275.pdf.
+        The actor only operate on local data.
 
         - The critic is updates based uppon a temporal difference error of the state-action value function
-          using the actor to compute the actionsfrom the next state.
-          error to minimize w.r.t w : r + γ * Q'_w'(s(t+1), µ'_θ'(s(t+1))) - Q_w(s(t),a(t))
+          using the actor to compute the action from the next state.
+          error to minimize w.r.t w : r + γ * Q'_w'(o(t+1), µ'_θ'(o(t+1))) - Q_w(o(t),a(t))
 
         - The actor is updated using direct approximates of the state-action values from the critic.
-          value to maximize w.r.t θ : Q_w(s(t), µ_θ(s(t+1)))  
+          value to maximize w.r.t θ : Q_w(o(t), µ_θ(o(t)))  
         '''
         obss_full, actions_full, rewards, next_obss_full, dones =\
             self.buffer.sample()
@@ -104,7 +121,6 @@ class DDPG_agent(Base_agent):
         Q_values = self.critic_network(obss_full, actions_full)
 
         critic_loss = self.critic_criterion(Q_values, Q_value_targets)
-        #self.writer.add_scalar(f'agent_{self.index}_critic_loss', loss)
         self.critic_network.optimizer.zero_grad()
         critic_loss.backward()
         if self.config.use_gradient_clipping:
@@ -129,13 +145,20 @@ class DDPG_agent(Base_agent):
     def learn_with_PER(self):
         '''
         Sample experiences from the replay buffer and updates the critic and the actor.
+        
+        The critic use a concatenation of the observations/actions from all agents to learn how to evaluate
+        a situation in a stationary setting as describe in https://arxiv.org/pdf/1706.02275.pdf.
+        The actor only operate on local data.
 
         - The critic is updates based uppon a temporal difference error of the state-action value function
-          using the actor to compute the actionsfrom the next state.
-          error to minimize w.r.t w : r + γ * Q'_w'(s(t+1), µ'_θ'(s(t+1))) - Q_w(s(t),a(t))
+          using the actor to compute the action from the next state.
+          error to minimize w.r.t w : r + γ * Q'_w'(o(t+1), µ'_θ'(o(t+1))) - Q_w(o(t),a(t))
 
         - The actor is updated using direct approximates of the state-action values from the critic.
-          value to maximize w.r.t θ : Q_w(s(t), µ_θ(s(t+1)))  
+          value to maximize w.r.t θ : Q_w(o(t), µ_θ(o(t)))
+
+        Since the distrubution of the sampled experience won't match the real distribution with a PER,
+        the stochastic gradient descent updates must be adjusted with the sampling weights: (1/N * 1/priority) ** β 
         '''
         obss_full, actions_full, rewards, next_obss_full, dones, priorities =\
             self.buffer.sample()
@@ -157,9 +180,6 @@ class DDPG_agent(Base_agent):
             errors = (Q_values * gradient_correction) - (TD_targets * gradient_correction)
         critic_loss = self.critic_criterion(Q_values * gradient_correction, TD_targets * gradient_correction)
         self.buffer.update_experiences_priority(errors)
-
-        #self.writer.add_scalar(f'agent_{self.index}_critic_loss', loss)
-        self.critic_loss.append(critic_loss)
 
         self.critic_network.optimizer.zero_grad()
         critic_loss.backward()
@@ -184,8 +204,11 @@ class DDPG_agent(Base_agent):
 
     def _act_target(self, observation):
         '''
-        Used in learn to compute the TD target
-        observation : tensor
+        Return an action from an observation using the target network. Used to compute the TD target.
+        Args: 
+            observation (torch tensor)
+        Returns:
+             action (torch tensor)
         '''
         self.actor_target_network.eval()
         action = self.actor_target_network.forward(observation)
@@ -195,9 +218,10 @@ class DDPG_agent(Base_agent):
 
     def _compute_td_error(self, obs_full, action_full, reward, next_obs_full, done):
         '''
-
+        Compute the time difference associated with an experience tuple in order to obtain
+        its priority of sampling.
         Returns:
-            [float]: the critic error for that experience.
+            (float): the critic error for that experience.
         '''
         def _convert_to_torch(args):
             return [torch.from_numpy(np.expand_dims(arg, axis=0))
@@ -219,8 +243,7 @@ class DDPG_agent(Base_agent):
         self.critic_network.train()
 
         TD_error = (Q_value - TD_target).item()
-        # TODO Fix this..
-        return np.array([TD_error])
+        return TD_error
         
 def soft_update(target_network, netwok, tau):
     '''

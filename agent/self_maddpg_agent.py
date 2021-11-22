@@ -3,23 +3,26 @@ import torch
 
 from marl_coop.agent import Base_agent
 from marl_coop.model import Actor_network_creator, Critic_network_creator
-from marl_coop.utils import BufferCreator, CriterionCreator, NoiseCreator, to_np
+from marl_coop.model.utils import CriterionCreator
+from marl_coop.utils import BufferCreator, NoiseCreator, to_np
 
 
 class SelfMADDPG_agent(Base_agent):
-    """
-    Multiple Agent Deep Deterministic Gradient implementation using a single actor.
-    """
+    '''
+    Multiple Agent Deep Deterministic Gradient implementation using a single actor & critic.
 
+    Attempt at easing the training of MADDPG agents in symetrical environments where the same actor and critic
+    can be used after a rearangment of the input tensors.
+    '''
     def __init__(self, context, config):
         '''
-            Store the config and the context.
-            Instantiate the utilities: the noise function and the replay buffer.
-            Instantiate the critic and the actor network.
+        Store the config and the context.
+        Instantiate the utilities: the noise function and the replay buffer.
+        Instantiate the critic and the actor networks.
 
-            Args:
-                context : RL information such as state & action size.
-                config : configuration of the agent and all its subparts.
+        Args:
+            context : RL information such as state & action size.
+            config : configuration of the agent and all its subparts.
         '''
         self.context = context
         self.config = config
@@ -45,7 +48,7 @@ class SelfMADDPG_agent(Base_agent):
 
     def act(self, obss_full, noise=False):
         '''
-        Take and action for each observations inputted.
+        Take an action for each observations inputted.
 
         Args:
             obss_full (np.ndarray): [(batch) * nbr_agents * obs_size]
@@ -68,9 +71,11 @@ class SelfMADDPG_agent(Base_agent):
 
     def step(self, obs_full, action_full, reward_full, next_obs_full, done_full):
         '''
-        
+        Store an interaction as a experience tuple and make the sub-agents learn when required.  
+        Experience are stored in the replay buffer as: 
+        (x, a1, ... ,an, r, x', done) with x the observations of all the agents.
         '''
-        # transform [1,0,1] into np.array([[1],[0],[1]])
+        # transform [1,0,1] into [[1],[0],[1]]
         done_full =  np.array(done_full).reshape(-1,1)
         reward_full =  np.array(reward_full).reshape(-1,1)
 
@@ -83,7 +88,21 @@ class SelfMADDPG_agent(Base_agent):
 
     def learn(self):
         '''
+        Sample experiences from the replay buffer and updates the critic and the actor.
         
+        The critic use a concatenation of the observations/actions from all agents to learn how to evaluate
+        a situation in a stationary setting as describe in https://arxiv.org/pdf/1706.02275.pdf.
+        The actor only operate on local data.
+
+        For each agent a view of the data according to that agent is created resulting in 
+        [nbr_agents * batch_size] updates at each learning.
+
+        - The critic is updates based uppon a temporal difference error of the state-action value function
+          using the actor to compute the action from the next state.
+          error to minimize w.r.t w : r + γ * Q'_w'(o(t+1), µ'_θ'(o(t+1))) - Q_w(o(t),a(t))
+
+        - The actor is updated using direct approximates of the state-action values from the critic.
+          value to maximize w.r.t θ : Q_w(o(t), µ_θ(o(t)))  
         '''
         obss_full, actions_full, rewards, next_obss_full, dones = self.buffer.sample()
         dones = torch.stack(dones)
@@ -129,6 +148,19 @@ def soft_update(target_network, netwok, tau):
 
 def _create_view_by_agent(x, nbr_agents):
     '''
+    Create a view of a list of tensors by agent by perfrming a cyrcular permutation of the data :
+    [tensors(agent_0), tensors(agent_1), ..., tensors(agent_n)] =>
+        for agent 0 :  tensors(tensors(agent_0) + tensors(agent_1) + ... + tensors(agent_n))
+        for agent 1 :  tensors(tensors(agent_1) + tensors(agent_2) + ... + tensors(agent_0))
+        ... 
+        for agent n :  tensors(tensors(agent_n) + tensors(agent_0) + ... + tensors(agent_n-1))
+
+    Args:
+        x (list[torch.tensor]): list of tensors to arrange to create a view by agent.
+        nbr_agents (int): number of agents.
+
+    Returns:
+        list[torch.tensor]: One arrangment of tensors where the data of the agent is first for each agents.
     '''
     res = [
         torch.roll(torch.stack(x), i, dims=0) 
