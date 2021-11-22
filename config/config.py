@@ -9,9 +9,14 @@ PATH_JSON_DDPG = os.path.join(os.path.dirname(__file__),
     r'./ddpg_config.json')
 
 class MADDPG_configuration:
-
+    '''
+    Configuration for multi-agent parameters and for all agents. 
+    '''
     def __init__(self, nbr_agents, agents_config={}):
-
+        '''
+        Build the configuration for all agents following first the default json
+        and then overriding specific configuration given in the agents_config argument.
+        '''
         with open(PATH_JSON_MADDPG, 'r') as json_config:
             # default configuration
             self.base_dict = json.load(json_config)
@@ -19,7 +24,6 @@ class MADDPG_configuration:
             self.dict = deepcopy(self.base_dict)
 
         self.agents = {}
-
         # update the agent config with potential overrides.
         update_dict(self.dict['agents'], agents_config)
         if len(self.dict['agents']) > nbr_agents:
@@ -44,20 +48,24 @@ class MADDPG_configuration:
             self.agents[agent_name] = DDPG_configuration(**dict_agent)
     
     @classmethod
-    # Alternative "contructor" to load from output
     def create_from_dict(cls, dict):
+        '''
+        Alternative "contructor" to load from output
+        '''
         nbr_agents = len(dict['agents'])
         obj = cls.__new__(cls)
         cls.__init__(obj, nbr_agents, agents_config=dict['agents'])
         return obj
             
 class AgentConfiguration:
-
+    '''
+    Abstract agent configuration.
+    '''
     def set_attr(self, attr, value):
-        """
-        if the value is different than None, update the config dictionary
+        '''
+        If the value is different than None, update the config dictionary
         with it, otherwise, take the default dict's value.
-        """
+        '''
         if value:
             setattr(self, attr, value)
             self.dict[attr] = value
@@ -252,7 +260,7 @@ class Noise_configuration:
 
 def update_dict(d_ref, d_ovr):
     """
-    for every specific kv given in d_ovr, change the corresponding
+    For every specific kv given in d_ovr, change the corresponding
     values in d_ref, the complete and udpated config dictionary.
     """
     try:
