@@ -59,7 +59,6 @@ class UniformReplayBuffer(ReplayBuffer):
     '''
     Simplest replay buffer where all experiences have an equal probability to be sampled.
     '''
-
     def __init__(self, config):
         super().__init__(config)
         self.is_PER = False

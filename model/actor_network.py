@@ -4,11 +4,10 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from marl_coop.utils import OptimizerCreator
+from marl_coop.model.utils import OptimizerCreator
 
 #TODO : Modularize the size of the network
 #TODO : Modularize the last activation function
-#TODO : Add tests
 
 class Actor_network_creator:
 
