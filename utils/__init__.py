@@ -5,4 +5,4 @@ from .utils import (get_files, to_np, plot_scores, load_scores,
 from .replay_buffer import BufferCreator
 from .action_noise import NoiseCreator
 from .run import Runner
-#from .loader import load_MADDPG_agent, load_agent
+#from .loader import load_MADDPG_agent, load_agent -> induce circular dependencies.
