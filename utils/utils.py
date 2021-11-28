@@ -13,7 +13,7 @@ def to_np(tensor) -> np.ndarray:
     return tensor.cpu().detach().numpy()
 
 def load_scores(path=None, day=None, month=None, year=None,
-                key=None, display=False):
+                keys=None, display=False):
     '''
     Load and return the scores optionaly for a certain ime period in a dictionary.
 
@@ -22,7 +22,7 @@ def load_scores(path=None, day=None, month=None, year=None,
         day (int, optional): The day of the runs to load.
         month (int, optional): The month of the runs to load.
         year (int, optional): The last two digits of the year of the runs to load.
-        key (str, optional): Specific run key to load.
+        key (str or list[str], optional): Specific run keys to load.
         display (bool, optional): print the found score files.
 
     Returns:
@@ -30,7 +30,9 @@ def load_scores(path=None, day=None, month=None, year=None,
     '''
     if path is None:
         path = os.path.join(os.path.dirname(__file__), r'./../../output/score')
-    files = get_files(path, key, day, month, year)
+    keys = list(keys) if isinstance(keys, str) else keys
+
+    files = get_files(path, keys, day, month, year)
     
     if display:
         print(files)
@@ -41,7 +43,7 @@ def load_scores(path=None, day=None, month=None, year=None,
         res[score_key] = pd.read_csv(os.path.join(path, f))
     return res
 
-def plot_scores(dic_scores, window_size=20, target_score=None):
+def plot_scores(dic_scores, window_size=20, target_score=None, axe=None, colors=None, title=None):
     """
     Plot the global scores of the agents in function of the number of episodes.
 
@@ -49,12 +51,19 @@ def plot_scores(dic_scores, window_size=20, target_score=None):
         dic_scores (dict): pandas DataFrame of the scores by run key.
         window_size (int, defaults to 20): The size of the window for the rolling average.
         target_score (float, optional): Display the given target score as a dotted horizontal line.
+        axe (AxesSubplot, optional): axe of the subplot when this plot is embedded in a subplot.
+        colors (list[mplt color], optional): list of color when default colors are not suitable.
+        title (str, optional): title of the plot to display.
     """
-    
-    fig, axe = plt.subplots(1,1,figsize=(12,6), dpi=175)
+    if axe:
+        fig = plt.gcf()
+    else:
+        fig, axe = plt.subplots(1,1,figsize=(12,6), dpi=175)
+    if not colors:
+        colors = [None] * len(dic_scores)
 
     max_len = 0
-    for key, result in dic_scores.items():
+    for idx,(key, result) in enumerate(dic_scores.items()):
         score = np.array(result.score)
         score_averaged = []
         for i in range(len(score)):
@@ -62,13 +71,15 @@ def plot_scores(dic_scores, window_size=20, target_score=None):
                 np.mean(
                     score[max(0, i-window_size//2): min(len(score)-1, i+window_size//2)]))
         max_len = max(max_len, len(score_averaged))
-        axe.plot(score_averaged, label=key)
+        axe.plot(score_averaged, label=key, color=colors[idx])
 
     if target_score:
         axe.hlines(target_score, 0, max_len, 'k', linestyle=':', label='target score')
 
     axe.set_ylabel('Score')
     axe.set_xlabel('Episode #')
+    if title:
+        axe.set_title(title, fontdict={'fontsize': 14})
     fig.legend(bbox_to_anchor=(.985, .98), loc='upper left')
     plt.tight_layout()
 
@@ -139,7 +150,7 @@ def filter_scores_on_averaged_threshold(dict_scores, th_score, window_size, sup=
     
     return res
 
-def get_files(path, key, day, month, year):
+def get_files(path, keys, day, month, year):
 
     files = [
     f for f in os.listdir(path) 
@@ -151,8 +162,8 @@ def get_files(path, key, day, month, year):
         files = [f for f in files if f[3:5]==month]
     if day: 
         files = [f for f in files if f[6:8]==day]
-    if key: 
-        files = [f for f in files if f[15:15+len(key)]==key]
+    if keys: 
+        files = [f for f in files if f[15: f.find('.')] in keys]
     
     return files
 
