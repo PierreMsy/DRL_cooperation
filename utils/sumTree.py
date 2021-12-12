@@ -1,6 +1,8 @@
 import numpy as np
 from collections import deque
 
+EPSILON = 1e-10
+
 class Node:
 
     def __init__(self, parent=None, priority=0):
@@ -9,6 +11,9 @@ class Node:
         self.right_node = None
         self.priority = priority
         self.index = -1  
+
+    def __str__(self):
+        return f"""index : {self.index}, priority : {self.priority}, has_childs : {(self.left_node != None)| (self.right_node != None)}"""
 
 class SumTree:
     '''
@@ -35,22 +40,34 @@ class SumTree:
         self.update_node_priority(self.leaf_nodes[self.write_index], priority)
         self.write_index = (self.write_index + 1) % self.size
 
-    def sample(self, size):
-        idxs, values = zip(*[self.draw() for _ in range(size)])
+    def sample(self, size, replacement=False):
+        '''
+        Sample from the sumtree the requested number of pairs index/value.
+        If replacement is set to false, the sample node have their priority udapted to zero
+        until updated by the new TD-error at learning (/!\ dependency /!\).
+        '''
+        if replacement:
+            idxs, values = zip(*[self.draw() for _ in range(size)])
+        else:
+            idxs, values = [], []
+            for _ in range(size):
+                if self.tree.priority < EPSILON: # Is priority equal to zero
+                    raise Exception('Not enought node to sample.')
+                node = self.draw_node()
+                self.update_node_priority(node, 0)
+                idxs.append(node.index)
+                values.append(self.values[node.index])
+                
         return idxs, values
 
-    def update_priorities(self, idxs, priorities):
-        for idx, priority in zip(idxs, priorities):
-            self.update_node_priority(self.leaf_nodes[idx], priority)
-
-    def draw(self):
+    def draw_node(self):
         '''
         Sample a value with its index from the sumTree.
         Details can be found in the link :
         https://adventuresinmachinelearning.com/sumtree-introduction-python/
         '''
         node = self.tree
-        x = np.random.uniform(node.priority)
+        x = np.random.uniform(high=node.priority)
 
         while node.left_node is not None:
             if x <= node.left_node.priority:
@@ -58,8 +75,16 @@ class SumTree:
             else:
                 x = x - node.left_node.priority
                 node = node.right_node
-        
+
+        return node
+
+    def draw(self):
+        node = self.draw_node()
         return node.index, self.values[node.index]
+
+    def update_priorities(self, idxs, priorities):
+        for idx, priority in zip(idxs, priorities):
+            self.update_node_priority(self.leaf_nodes[idx], priority)
 
     def update_node_priority(self, node, priority):
         '''

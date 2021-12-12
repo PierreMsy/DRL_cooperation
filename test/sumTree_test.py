@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from marl_coop.utils.sumTree import SumTree
 
@@ -95,7 +96,7 @@ def test_3_leaf_tree_can_be_sampled_when_one_leaf_priority_is_non_null():
     memory.add(13,0)
     memory.add(11,0)
     
-    sampled_values_idx, sampled_values = memory.sample(3)
+    sampled_values_idx, sampled_values = memory.sample(3, replacement=True)
     sampled_values_idx = np.array(sampled_values_idx)
     sampled_values = np.array(sampled_values)
 
@@ -111,7 +112,7 @@ def test_3_leaf_tree_can_be_sampled_when_two_leaves_priority_are_non_null():
     memory.add(11,2)
 
 
-    sampled_values_idx, sampled_values = memory.sample(10)
+    sampled_values_idx, sampled_values = memory.sample(10, replacement=True)
     sampled_values_idx = np.array(sampled_values_idx)
     sampled_values = np.array(sampled_values)
 
@@ -152,11 +153,52 @@ def test_6_leaf_tree_can_be_sampled():
     assert (tree.right_node.left_node.priority == 3)
     assert (tree.right_node.right_node.priority == 0)
 
-    sampled_values_idx, sampled_values = memory.sample(20)
+    sampled_values_idx, sampled_values = memory.sample(20, replacement=True)
     sampled_values_idx = np.array(sampled_values_idx)
     sampled_values = np.array(sampled_values)
 
     assert np.all((sampled_values_idx==4) | (sampled_values_idx==0) | (sampled_values_idx==2))
     assert np.all((sampled_values==19) | (sampled_values==7) | (sampled_values==27))
+
+
+def test_4_leaf_tree_can_be_sampled_without_replacement():
+    '''
+           111
+         /      \ 
+     110          1
+    /   \       /  \
+   100  10     1    0
+    '''
+    
+    memory = SumTree(4)
+
+    memory.add(1,100) 
+    memory.add(2,10)
+    memory.add(3,1)
+    memory.add(4,0)
+
+    _, sampled_values = memory.sample(3, replacement=False)
+
+    assert sampled_values  == [1, 2, 3]
+
+def test_that_sampling_without_replacement_too_much_will_raise_exception():
+    '''
+           111
+         /      \ 
+     110          1
+    /   \       /  \
+   100  10     1    0
+    '''
+    
+    memory = SumTree(4)
+
+    memory.add(1,100)
+    memory.add(2,10)
+    memory.add(3,1)
+    memory.add(4,0)
+
+    _, _ = memory.sample(3, replacement=False)
+    with pytest.raises(Exception):
+        _, _ = memory.sample(4, replacement=False)
 
     

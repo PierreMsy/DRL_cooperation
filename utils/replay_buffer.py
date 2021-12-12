@@ -169,6 +169,7 @@ class PrioritizedSumTreeBuffer(ReplayBuffer):
         self.Experience = namedtuple('Experience',
             ['obs_full', 'action_full', 'reward', 'next_obs_full', 'done', 'priority'])
         self.memory = SumTree(tree_size=config.size)
+        self.sample_with_replacement = config.sample_with_replacement
         self.sampled_idxs = ()
 
     def add(self, obs_full, action_full, reward, next_obs_full, done, error):
@@ -197,7 +198,7 @@ class PrioritizedSumTreeBuffer(ReplayBuffer):
         if not sample_size:
             sample_size = self.config.batch_size
         
-        idxs, experiences = self.memory.sample(sample_size)
+        idxs, experiences = self.memory.sample(sample_size, replacement=self.sample_with_replacement)
         self.sampled_idxs = idxs
 
         batches_experience_args = list(zip(*experiences))
