@@ -51,3 +51,21 @@ def test_MADDPG_config_can_be_instantiated_with_specfic_DDPG_confg():
     cfg_agents = cfg.dict['agents']
     assert 'agent_A' in cfg_agents
     assert 'agent_B' in cfg_agents
+
+def test_batch_size_can_be_overriden():
+
+    agent_cfg = {
+        'buffer':{
+            'batch_size':5
+            }
+    }
+    
+    agents_config={
+        'agent_A': agent_cfg,
+        'agent_B': agent_cfg
+    }
+
+    cfg = MADDPG_configuration(nbr_agents=2, agents_config=agents_config)
+    actual_batchsize = cfg.dict['agents']['agent_A']['buffer']['batch_size']
+
+    assert actual_batchsize == 5

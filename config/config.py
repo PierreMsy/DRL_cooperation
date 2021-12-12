@@ -78,7 +78,6 @@ class AgentConfiguration:
                  device=None,
                  gamma=None,
                  tau=None,
-                 batch_size=None,
                  update_every=None,
                  use_gradient_clipping=None,
                  learing_per_update=None):
@@ -94,7 +93,6 @@ class AgentConfiguration:
         self.set_attr('device', device)
         self.set_attr('gamma', gamma) # discount factor
         self.set_attr('tau', tau) # target net soft update rate
-        self.set_attr('batch_size', batch_size)
         self.set_attr('update_every', update_every)
         self.set_attr('use_gradient_clipping', use_gradient_clipping)
         self.set_attr('learing_per_update', learing_per_update)
@@ -116,7 +114,6 @@ class DDPG_configuration(AgentConfiguration):
                  device=None,
                  gamma=None,
                  tau=None,
-                 batch_size=None,
                  update_every=None,
                  use_gradient_clipping=None,
                  learing_per_update=None,
@@ -126,12 +123,11 @@ class DDPG_configuration(AgentConfiguration):
                  noise={}):
         super().__init__(seed=seed,
             base_dict_path=PATH_JSON_DDPG, device=device,
-            gamma=gamma, tau=tau, batch_size=batch_size, 
+            gamma=gamma, tau=tau,
             update_every=update_every,
             use_gradient_clipping=use_gradient_clipping,
             learing_per_update=learing_per_update)
 
-        self.dict['buffer']['batch_size'] = self.batch_size
         self.dict['buffer']['device'] = self.device
         update_dict(self.dict['buffer'], buffer)
         self.buffer = Buffer_configuration(self.dict['buffer'])
@@ -208,17 +204,20 @@ class Buffer_configuration:
         self.alpha = dict_config.get('alpha')
         self.beta = dict_config.get('beta')
         self.epsilon = dict_config.get('epsilon')
+        self.sample_with_replacement = dict_config.get('sample_with_replacement')
 
         self.kwargs = {
             'size' : self.size,
             'batch_size' : self.batch_size,
             'device' : self.device,
-            'type' : self.type,
+            'type' : self.type
         }
+        # PER only arguments
         if self.alpha:
             self.kwargs['alpha'] = self.alpha
             self.kwargs['beta'] = self.beta
             self.kwargs['epsilon'] = self.epsilon
+            self.kwargs['sample_with_replacement'] = self.sample_with_replacement
     
     def __str__(self):
         return f"""type : {self.type}, size : {self.size}"""

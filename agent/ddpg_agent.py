@@ -81,13 +81,13 @@ class DDPG_agent(Base_agent):
             td_error  = self._compute_td_error(obs_full, action_full, reward, next_obs_full, done)
             self.buffer.add(obs_full, action_full, reward, next_obs_full, done, np.array([td_error]))
 
-            if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
+            if (len(self.buffer) >= self.config.buffer.batch_size) & (self.t_step % self.config.update_every == 0):
                 for _ in range(self.config.learing_per_update):
                     self.learn_with_PER()
         else:
             self.buffer.add(obs_full, action_full, reward, next_obs_full, done)
 
-            if (len(self.buffer) >= self.config.batch_size) & (self.t_step % self.config.update_every == 0):
+            if (len(self.buffer) >= self.config.buffer.batch_size) & (self.t_step % self.config.update_every == 0):
                 for _ in range(self.config.learing_per_update):
                     self.learn()
                 
@@ -168,7 +168,7 @@ class DDPG_agent(Base_agent):
         dones = dones[0].view(-1,1)
         priorities = priorities[0].view(-1,1)
 
-        gradient_correction = (1/self.config.batch_size * 1/priorities).pow(self.config.buffer.beta)
+        gradient_correction = (1/self.config.buffer.batch_size * 1/priorities).pow(self.config.buffer.beta)
 
         next_actions_full = self.maddpg._act_target(next_obss_full)
         with torch.no_grad():
