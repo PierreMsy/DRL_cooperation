@@ -70,4 +70,4 @@ def load_MADDPG_agent(key, context, path_cfg=None, path_model=None, day=None, mo
         agent.critic_network.load_state_dict(critic_checkpoint)
         agent.critic_target_network.load_state_dict(critic_checkpoint)
 
-    return agent
+    return maddpg
