@@ -30,7 +30,7 @@ def load_scores(path=None, day=None, month=None, year=None,
     '''
     if path is None:
         path = os.path.join(os.path.dirname(__file__), r'./../../output/score')
-    keys = list(keys) if isinstance(keys, str) else keys
+    keys = [keys] if isinstance(keys, str) else keys
 
     files = get_files(path, keys, day, month, year)
     
