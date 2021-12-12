@@ -17,7 +17,7 @@ class Runner:
         self.path_config = os.path.join(file_location, r'./../../output/configuration')
         
     def run(self, MA_agents, env, brain_name, nb_episodes, run_key,
-            average_on=10, target_score=None, target_over=100,
+            average_on=10, average_break=None, target_score=None, target_over=100,
             save_score=False, save_config=False, save_weights=False, save_interaction=False):
         '''
         Train multiple agents by making them interact with the provided environment.
@@ -29,6 +29,7 @@ class Runner:
             nb_episodes (int): number of training episodes
             run_key (string): name of the training for recordings
             average_on (int, defaults to 10) : number of episode score to average to diplay performances
+            average_break (int, optional) : average score that to stop the training onve reached
             target_score (int, optional): mean score to reach over a certain number of episodes
             target_over (int, defaults to 100): number of score to average to compare to the target score
             save_score (bool, defaults to False): option to save the score by agent by episode
@@ -38,6 +39,7 @@ class Runner:
         '''
         self.log_sigma = 0
         scores = deque()
+        score_averaged = float('-inf')
         scores_by_agent = {k:deque() for k in MA_agents.agents_named}
 
         scores_target = deque(maxlen=target_over)
@@ -46,6 +48,8 @@ class Runner:
         
         for episode in range(1, nb_episodes+1):
             
+            if average_break and score_averaged >= average_break: 
+                break
             env_info = env.reset(train_mode=True)[brain_name] 
             observations = env_info.vector_observations          
             score = 0
