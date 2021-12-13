@@ -11,10 +11,10 @@ class Runner:
     Helper class that handle the training of agents in a MARL environment.
     '''
     def __init__(self) -> None:
-        file_location = os.path.dirname(__file__)
-        self.path_score = os.path.join(file_location, r'./../../output/score')
-        self.path_model = os.path.join(file_location, r'./../../output/model')
-        self.path_config = os.path.join(file_location, r'./../../output/configuration')
+        file_location = os.path.abspath(os.getcwd()) # os.path.dirname(__file__)
+        self.path_score = os.path.join(file_location, r'./output/score')
+        self.path_model = os.path.join(file_location, r'.//output/model')
+        self.path_config = os.path.join(file_location, r'./output/configuration')
         
     def run(self, MA_agents, env, brain_name, nb_episodes, run_key,
             average_on=10, average_break=None, target_score=None, target_over=100,
