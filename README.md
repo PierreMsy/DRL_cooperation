@@ -34,6 +34,9 @@ The environment is considered **solved**, when the average (over 100 episodes) o
 - Trained model weights can be found in the `./output/model` directory.
 - The global and by agent training socre are recoreded in the `./output/score` directory.
 - The configurations used for training are also stored at `./output/configuration`.
+- The environment folder at `./environment`.
+
+3. Add the downloaded environment to the newly created folder `./environment`.
 
 ## Instructions
 
