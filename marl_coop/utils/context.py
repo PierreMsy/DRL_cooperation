@@ -1,6 +1,6 @@
 from unityagents import UnityEnvironment
 from unityagents.brain import BrainParameters
-import gym
+#import gym
 
 
 from marl_coop.test.mock import Mock_env
@@ -21,7 +21,7 @@ class Context:
             self.action_min = kwargs.get("action_min")
             self.action_max = kwargs.get("action_max")
 
-        elif isinstance(env, gym.wrappers.time_limit.TimeLimit):
+        elif 1==0: #isinstance(env, gym.wrappers.time_limit.TimeLimit):
 
             self.state_size = env.observation_space.shape
             if len(self.state_size) == 1:

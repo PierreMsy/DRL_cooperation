@@ -9,7 +9,7 @@ from marl_coop.agent import MADDPG_agents
 def load_agent(key, agent, path=None, day=None, month=None, year=None):
 
     if path is None:
-        path = os.path.join(os.path.abspath(os.getcwd()), r'.//output/model')
+        path = os.path.join(os.path.abspath(os.getcwd()), r'./output/model')
     files = get_files(path, key, day, month, year)
 
     if len(files) > 2:
@@ -33,9 +33,9 @@ def load_agent(key, agent, path=None, day=None, month=None, year=None):
 def load_MADDPG_agent(key, context, path_cfg=None, path_model=None, day=None, month=None, year=None):
 
     if path_cfg is None:
-        path_cfg = os.path.join(os.path.abspath(os.getcwd()), r'./../../output/configuration')
+        path_cfg = os.path.join(os.path.abspath(os.getcwd()), r'./output/configuration')
     if path_model is None:
-        path_model = os.path.join(os.path.abspath(os.getcwd()), r'./../../output/model')
+        path_model = os.path.join(os.path.abspath(os.getcwd()), r'./output/model')
     
     file_cfg = get_files(path_cfg, key, day, month, year)
     if len(file_cfg) > 1:

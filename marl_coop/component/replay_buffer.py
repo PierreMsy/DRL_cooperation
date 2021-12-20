@@ -4,7 +4,7 @@ import random
 from collections import deque, namedtuple
 from abc import abstractmethod
 
-from marl_coop.utils.sumTree import SumTree
+from marl_coop.component import SumTree
 
 class BufferCreator:
     '''

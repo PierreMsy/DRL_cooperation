@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from marl_coop.model.utils import OptimizerCreator
+from marl_coop.model.component import OptimizerCreator
 
 #TODO : Modularize the size of the network
 #TODO : Modularize the last activation function

@@ -1,10 +1,9 @@
 import numpy as np
-
 import torch
 from torch import  nn
 import torch.nn.functional as F
 
-from marl_coop.model.utils import OptimizerCreator
+from marl_coop.model.component import OptimizerCreator
 
 
 class Critic_network_creator:

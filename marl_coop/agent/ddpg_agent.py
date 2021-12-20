@@ -3,8 +3,9 @@ import torch
 
 from marl_coop.agent import Base_agent
 from marl_coop.model import Actor_network_creator, Critic_network_creator
-from marl_coop.model.utils import CriterionCreator
-from marl_coop.utils import to_np, BufferCreator, NoiseCreator
+from marl_coop.model.component import CriterionCreator
+from marl_coop.component import BufferCreator, NoiseCreator
+from marl_coop.utils.helper import to_np
 
 
 class DDPG_agent(Base_agent):
