@@ -31,9 +31,12 @@ class Mock_buffer_config:
 
     def __init__(self,
                  type,
-                 size) -> None:
+                 size,
+                 sample_with_replacement=True) -> None:
         self.type = type
         self.size = size
+        self.sample_with_replacement = sample_with_replacement
         self.device = 'cpu'
         self.epsilon = 0 # no probability floor to ease testing
         self.alpha = 1
+        

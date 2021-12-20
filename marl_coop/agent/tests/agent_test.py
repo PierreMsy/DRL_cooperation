@@ -2,7 +2,7 @@ import pytest
 
 from marl_coop.agent import MADDPG_agents
 from marl_coop.config import MADDPG_configuration
-from marl_coop.utils import Context
+from marl_coop.utils.context import Context
 from marl_coop.test.mock import Mock_env
 
 
