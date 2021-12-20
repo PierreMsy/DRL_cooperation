@@ -8,6 +8,8 @@ The most successful implementation of this package is a take on [Multi Agent Dee
 
 The experimental environment is a modified version of the tennis [Unity environment](https://github.com/Unity-Technologies/ml-agents/blob/main/docs/Learning-Environment-Examples.md#tennis).
 
+[![Python badge](https://img.shields.io/badge/python-v3.6-blue.svg)](https://shields.io/)
+
 ## The Environnement
 
 In this environment, **two agents control rackets to bounce a ball over a net**. If an agent hits the ball over the net, it receives a reward of +0.1. If an agent lets a ball hit the ground or hits the ball out of bounds, it receives a reward of -0.01. Thus, the goal of each agent is to keep the ball in play.
