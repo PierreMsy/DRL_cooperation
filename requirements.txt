@@ -1,5 +1,4 @@
 docopt
-grpcio==1.41.0
 ipykernel
 jedi
 json5==0.9.5
@@ -8,7 +7,6 @@ matplotlib
 numpy>=1.11.0
 pandas
 Pillow>=5.2.1
-protobuf==3.18.1
 pytest>=6.2.4
 pyyaml
 scipy
@@ -16,4 +14,3 @@ seaborn
 tensorflow==1.7.1
 torch==1.10.0
 unityagents==0.4.0
-
