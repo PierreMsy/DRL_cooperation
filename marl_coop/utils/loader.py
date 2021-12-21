@@ -2,7 +2,7 @@ import os
 import torch
 import json
 
-from marl_coop.utils import get_files
+from marl_coop.utils.io import get_files
 from marl_coop.config import MADDPG_configuration
 from marl_coop.agent import MADDPG_agents
 
@@ -30,12 +30,13 @@ def load_agent(key, agent, path=None, day=None, month=None, year=None):
 
     return agent
 
-def load_MADDPG_agent(key, context, path_cfg=None, path_model=None, day=None, month=None, year=None):
+def load_MADDPG_agent(key, context, path=None, path_cfg=None, path_model=None, day=None, month=None, year=None):
 
+    base_path = os.path.join(os.path.abspath(os.getcwd()), r'output') if path is None else path
     if path_cfg is None:
-        path_cfg = os.path.join(os.path.abspath(os.getcwd()), r'./output/configuration')
+        path_cfg = os.path.join(base_path, r'configuration')
     if path_model is None:
-        path_model = os.path.join(os.path.abspath(os.getcwd()), r'./output/model')
+        path_model = os.path.join(base_path, r'model')
     
     file_cfg = get_files(path_cfg, key, day, month, year)
     if len(file_cfg) > 1:
@@ -53,8 +54,7 @@ def load_MADDPG_agent(key, context, path_cfg=None, path_model=None, day=None, mo
         raise Exception('Please add temporal information, too much models matched the given key:\n'+
         f'Found files :{repository_models}\nInput key : {key}, day : {day}, month : {month}, year : {year}.')
     repository_models = os.path.join(path_model, repository_models[0])
-    
-    files_model = os.listdir(os.path.join(path_model, repository_models))
+    files_model = os.listdir(repository_models)
 
     for agent_name, agent in maddpg.agents_named.items():
 

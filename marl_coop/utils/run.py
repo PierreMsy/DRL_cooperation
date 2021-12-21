@@ -3,8 +3,7 @@ import os
 import numpy as np
 from collections import deque
 
-from marl_coop.utils import save_scores, save_AC_models, save_configuration
-
+from marl_coop.utils.io import save_scores, save_AC_models, save_configuration
 
 class Runner:
     '''
